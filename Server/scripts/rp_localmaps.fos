@@ -1,0 +1,156 @@
+#include "_macros.fos"
+#include "_colors.fos"
+
+#define MAP_CENTER          	    ( 417 )
+#define MAP_NORTH         		    ( 518 )
+#define MAP_EAST          	     	( 519 )
+#define MAP_SOUTH          		    ( 520 )
+#define MAP_WEST      	   		    ( 521 )
+#define MAP_NORTH_WEST				( 522 )
+#define MAP_NORTH_EAST     		    ( 523 )
+#define MAP_SOUTH_WEST      	    ( 524 )
+#define MAP_SOUTH_EAST       	    ( 525 )
+
+#define DIR_NORTH ( 0 )
+#define DIR_EAST  ( 1 )
+#define DIR_SOUTH ( 2 )
+#define DIR_WEST  ( 3 )
+
+class LocalMap{
+	uint pid;
+	uint westMapPid;
+	uint eastMapPid;
+	uint northMapPid;
+	uint southMapPid;
+		
+	LocalMap(){}
+	
+	LocalMap(uint id, uint westMapPid, uint eastMapPid, uint northMapPid, uint southMapPid){
+		this.pid = id;
+		this.westMapPid = westMapPid;
+		this.eastMapPid = eastMapPid;
+		this.northMapPid = northMapPid;
+		this.southMapPid = southMapPid;
+	}
+
+}
+
+class LocalMapsEngine{
+	LocalMap[] maps;
+
+	LocalMapsEngine(){
+		initiate();
+	}
+	
+	void initiate(){
+		maps.insertLast(LocalMap(MAP_CENTER, MAP_WEST, MAP_EAST, MAP_NORTH, MAP_SOUTH));
+		maps.insertLast(LocalMap(MAP_NORTH, MAP_NORTH_WEST, MAP_NORTH_EAST, MAP_SOUTH, MAP_CENTER));
+		maps.insertLast(LocalMap(MAP_EAST, MAP_CENTER, MAP_WEST, MAP_NORTH_EAST, MAP_SOUTH_EAST));
+		maps.insertLast(LocalMap(MAP_SOUTH, MAP_SOUTH_WEST, MAP_SOUTH_EAST, MAP_CENTER, MAP_NORTH));
+		maps.insertLast(LocalMap(MAP_WEST, MAP_EAST, MAP_CENTER, MAP_NORTH_WEST, MAP_SOUTH_WEST));
+		maps.insertLast(LocalMap(MAP_NORTH_WEST, MAP_NORTH_EAST, MAP_NORTH, MAP_SOUTH_WEST, MAP_WEST));
+		maps.insertLast(LocalMap(MAP_NORTH_EAST, MAP_NORTH, MAP_NORTH_WEST, MAP_SOUTH_EAST, MAP_EAST));
+		maps.insertLast(LocalMap(MAP_SOUTH_WEST, MAP_SOUTH_EAST, MAP_SOUTH, MAP_WEST, MAP_NORTH_WEST));
+		maps.insertLast(LocalMap(MAP_SOUTH_EAST, MAP_SOUTH, MAP_SOUTH_WEST, MAP_EAST, MAP_NORTH_EAST));
+	}
+	
+	int checkMapLeave(uint16 hexX, uint16 hexY)
+	{
+		
+		if( hexX <= 110 && hexX > 100 ){
+			return DIR_EAST;
+		}
+		
+		if( hexY <= 110 && hexY > 100 ){
+			return DIR_NORTH;
+		}
+		
+		if( hexX < 1000 && hexX >= 990 ){
+			return DIR_WEST;
+		}
+		
+		if( hexY < 1000 && hexY >= 990 ){
+			return DIR_SOUTH;
+		}
+
+		return -1;
+	}
+	
+	void tryTransitCritter(Critter@ cr)
+	{
+		uint16 hexX = cr.HexX, hexY = cr.HexY;
+		uint16 newX = 0, newY = 0;
+		
+		int dir = checkMapLeave(hexX, hexY);
+		
+		if(dir == -1)
+			return;
+			
+		if(dir == DIR_NORTH)
+		{
+			newX = hexX;
+			newY = 985;
+		}
+		
+		if(dir == DIR_EAST)
+		{
+			newX = 985;
+			newY = hexY;
+		}
+		
+		if(dir == DIR_SOUTH)
+		{
+			newX = hexX;
+			newY = 115;
+		}
+		
+		if(dir == DIR_WEST)
+		{
+			newX = 115;
+			newY = hexY;
+		}
+		
+		uint nextMapPid = getNextMapPidByDir(cr, dir);
+		Location@ currentLoc = cr.GetMap().GetLocation();
+		Map@ nextMap = currentLoc.GetMap(nextMapPid);
+		
+		cr.TransitToMap(nextMap.Id, newX, newY, 6);	
+	}
+	
+	LocalMap getLocalMapByPid(uint protoId)
+	{
+		for(uint i = 0; i < maps.length(); i++)
+		{
+			if(maps[i].pid == protoId)
+				return maps[i];
+		}
+		
+		return LocalMap();
+	}
+	
+	uint getNextMapPidByDir(Critter@ cr, uint dir)
+	{
+		uint mapPid = cr.GetMap().GetProtoId();
+		LocalMap@ currentMap = getLocalMapByPid(mapPid);
+		
+		switch(dir){
+			case DIR_NORTH:
+				return currentMap.northMapPid;
+				
+			case DIR_EAST:
+				return currentMap.eastMapPid;
+				
+			case DIR_SOUTH:
+				return currentMap.southMapPid;
+				
+			case DIR_WEST:
+				return currentMap.westMapPid;
+			
+			default:
+				return 0;
+		}
+		
+		return 0;
+	}
+	
+}

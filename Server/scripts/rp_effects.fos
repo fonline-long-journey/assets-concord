@@ -1,0 +1,71 @@
+// FOS Server Client
+// Some effects for RP server, by PigBoss
+// Praise the PigBoss
+
+#ifdef __SERVER
+	#include "_defines.fos"
+	#include "_macros.fos"
+	
+	void Quake_Effect( Critter& cr, int noise, int time ){
+	if(cr.IsPlayer() )
+		cr.RunClientScript("rp_effects@cl_Quake", noise, time, 0, null, null);
+	}
+	
+#endif
+
+#ifdef __CLIENT
+	#include "_client_defines.fos"
+	void cl_Quake(int noise, int time, int param3, string@ param4, int[]@ param5 ){
+		QuakeScreen(noise, time);
+		__MouseX += Random(noise * -1, noise);
+		__MouseY += Random(noise * -1, noise);
+	}
+	
+	void __HearShot( int param0, int param1, int type, string@ param3, int[] @ param4 )
+	{
+		CritterCl@ chosen = GetChosen();
+		uint8 dir = GetDirection(chosen.HexX, chosen.HexY, param0, param1);
+		string typestr = getShotMsg(type, false);
+		MapMessage( typestr, param0 + Random( -2, 2 ), param1 + Random( -2, 2 ), __DamageHitDelay, 0xFFC80000, true, Random( -5, 5 ), -20 );
+		Message( getShotMsg(type, true) + getDirectionMessage(dir), FOMB_COMBAT_RESULT );
+	}
+	
+	string getShotMsg(int type, bool self){
+	if(! self)
+		switch(type){
+			case 0:
+				return "выстрел";
+			case 1:
+				return "очередь";
+		}
+	else
+		switch(type){
+			case 0:
+			return "Вы услышали выстрел ";
+			case 1:
+			return "Вы услышали очередь ";
+		}
+		return "";
+	}
+	
+	string getDirectionMessage(uint8 dir){
+		switch(dir){
+			case 0:
+				return "с северо-востока";
+			case 1:
+				return "c востока";
+			case 2:
+				return "c юго-востока";
+			case 3:
+				return "c юго-запада";
+				
+			case 4:
+				return "с запада";
+			case 5:
+				return "с северо-запада";
+		
+		}
+		return "непонятно откуда";	
+	}
+	
+#endif

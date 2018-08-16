@@ -1,0 +1,332 @@
+// shared client/server script for throwing objects
+// ported from 2238 by PigBoss
+#include "_macros.fos"
+
+#ifdef __SERVER
+# define CritterMutual    Critter
+# define ItemMutual       Item
+import void InjureCritterThrowing(Critter& target, Critter& attacker, ProtoItem& weapon, Item& item) from "health";
+#endif
+#ifdef __CLIENT
+# include "sprite.fos"
+# include "_colors.fos"
+# include "_client_defines.fos"
+# define CritterMutual    CritterCl
+# define ItemMutual       ItemCl
+#endif
+
+bool IsThrowingWeapon( ItemMutual@ item )
+{
+    if( !valid( item ) )
+        return false;
+    if( item.GetType() != ITEM_TYPE_WEAPON )
+        return false;
+    uint8 use = _WeaponModeUse( item.Mode );
+    return _WeaponSkill( item.Proto, use ) == SK_THROWING;
+}
+
+uint GetMaxRange( CritterMutual& cr, ItemMutual@ item )
+{
+    if( !valid( item ) )
+        return 0;
+
+    uint max = 5 * cr.Param[ST_STRENGTH];
+    if( IsThrowingWeapon( item ) )
+    {
+        uint8 use = _WeaponModeUse( item.Mode );
+        return MIN( _WeaponMaxDist( item.Proto, use ), max );
+    }
+    else
+    {
+        float lbs = 0.002 * item.Proto.Weight;
+        lbs = MAX( lbs, 1.0f );
+        lbs = sqrt( lbs );
+        return uint( float(max) / lbs );
+    }
+}
+
+bool IsThrowable( ProtoItem& weapon )
+{
+    if( !valid( weapon ) )
+        false;
+    return !( weapon.Type == ITEM_TYPE_WEAPON && weapon.Weapon_IsUnarmed );
+}
+
+int ThrowingToHit( CritterMutual& cr, uint16 tx, uint16 ty, ProtoItem& weapon )
+{
+    if( !valid( weapon ) )
+        return 0;
+    if( weapon.Type == ITEM_TYPE_WEAPON && weapon.Weapon_IsUnarmed )
+        return 0;
+    if( !cr.IsLife() )
+        return 0;
+
+    int dist = GetDistantion( cr.HexX, cr.HexY, tx, ty );
+
+    int toHit = int( cr.Param[SK_THROWING] );
+    int blockers = 0;
+
+    int distmod1 = 2;   // used for initial weapon bonus
+    int distmod2 = 0;   // minimal distance
+
+    int perception = cr.Param[ST_PERCEPTION];
+    int acc = dist;
+
+    if( dist < distmod2 )
+        acc += distmod2;
+    else
+    {
+        if( cr.IsPlayer() )
+            acc -= ( perception - 2 ) * distmod1;                // we want to keep it, because fo2238 might use it to display NPCs chance (via possessing)
+        else
+            acc -= perception * distmod1;
+    }
+
+    if( -2 * perception > acc )
+        acc = -2 * perception;
+
+
+    if( acc >= 0 )
+    {
+        if( cr.Param[DAMAGE_EYE] > 0 )
+            acc *= -12;
+        else
+            acc *= -4;
+    }
+    else
+        acc *= -4;
+
+    toHit += acc;
+
+    #ifdef __SERVER
+    Map@ map = cr.GetMap();
+    blockers = map.GetCrittersPath( cr.HexX, cr.HexY, tx, ty, 0.0f, dist, FIND_LIFE, null );
+    #endif
+    #ifdef __CLIENT
+    blockers = GetCrittersPath( cr.HexX, cr.HexY, tx, ty, 0.0f, dist, FIND_LIFE, null );
+    #endif
+
+    toHit -= 10 * blockers;
+
+    if( cr.Param[DAMAGE_EYE] > 0)
+        toHit -= 25;
+    toHit = CLAMP( toHit, 5, 95 );
+    return toHit;
+}
+
+int ActionPointsCost( ItemMutual& item )
+{
+    if( IsThrowingWeapon( item ) )
+    {
+        uint8 use = _WeaponModeUse( item.Mode );
+        return _WeaponApCost( item.Proto, use );
+    }
+    float lbs = 0.002 * item.Proto.Weight;
+    lbs = MAX( lbs, 1.0f );
+    lbs = sqrt( lbs ) + 3;
+    return int(lbs);
+}
+
+bool IsThrowableThere( CritterMutual& cr, ItemMutual@ item, uint16 tx, uint16 ty )
+{
+    if( !valid( item ) || !IsThrowable( item.Proto ) || !cr.IsLife() )
+        return false;
+    #ifdef __SERVER
+    if( cr.Param[ST_CURRENT_AP] < ActionPointsCost( item ) )
+        return false;
+    #endif
+    return GetMaxRange( cr, item ) >= GetDistantion( cr.HexX, cr.HexY, tx, ty );
+}
+
+#ifdef __SERVER
+
+void unsafe_Throw( Critter& player, int px, int py, int p2, string@ param3, array< int >@ param4 )
+{
+    if( player.IsBusy() )
+        return;
+    Map@ map = player.GetMap();
+    if( !valid( map ) )
+        return;
+    if( px < 0 || px >= int( map.GetWidth() ) || py < 0 || py >= int( map.GetHeight() ) )
+        return;
+
+    Item@ item = player.GetItem( 0, SLOT_HAND1 );
+    if( !IsThrowableThere( player, item, px, py ) )
+        return;
+
+    uint16 tx = px;
+    uint16 ty = py;
+
+    // wallcheck
+    uint16 pbx = tx;
+    uint16 pby = ty;
+    uint16 bx = tx;
+    uint16 by = ty;
+    map.GetHexCoord( player.HexX, player.HexY, tx, ty, 0, 0 );
+  
+
+    int tohit = ThrowingToHit( player, tx, ty, item.Proto );
+    if( tohit >= Random( 1, 100 ) )
+    {
+        CommenceThrowing( player, map, item, tx, ty );
+    }
+    else
+    {
+        uint dist = GetDistantion( player.HexX, player.HexY, tx, ty ) + 1;
+        map.MoveHexByDir( tx, ty, Random( 0, 5 ), Random( 1, dist / 2 ) );
+        map.GetCrittersPath( player.HexX, player.HexY, tx, ty, 0.0f, 0, FIND_LIFE_AND_KO, null, pbx, pby, bx, by );
+        tx = pbx;
+        ty = pby;
+        CommenceThrowing( player, map, item, tx, ty );
+    }
+
+}
+
+bool IsGrenade( Item& item )
+{
+    if( !IsThrowingWeapon( item ) )
+        return false;
+    uint8 use = _WeaponModeUse( item.Mode );
+    uint8 dmgType = _WeaponDmgType( item.Proto, use );
+    return dmgType == DAMAGE_PLASMA || dmgType == DAMAGE_EMP || dmgType == DAMAGE_EXPLODE;
+}
+
+void CommenceThrowing( Critter& cr, Map& map, Item& item, uint16 tx, uint16 ty )
+{
+
+	uint8 use = _WeaponModeUse( item.Mode );
+    uint8 dmgType = _WeaponDmgType( item.Proto, use );
+	
+    uint8 dir = GetDirection( cr.HexX, cr.HexY, tx, ty );
+    cr.SetDir( dir );
+	cr.Animate( 0, ANIM2_THROW, null, true, false );
+    cr.Wait( cr.Param[CR_BREAKTIME] );
+    cr.ParamBase[ST_CURRENT_AP] -= 100 * ActionPointsCost( item );
+    map.RunFlyEffect( item.GetProtoId(), cr, null, cr.HexX, cr.HexY, tx, ty );
+    uint16 pid = item.GetProtoId();
+	if( valid(map.GetCritter( tx, ty )) )
+		InjureCritterThrowing(map.GetCritter( tx, ty ),  cr, item.Proto, item);
+    cr.PlaySound( 'W', SOUND_WEAPON_USE, 'O', '1', true );         // '1'?
+	cr.MoveItem(item.Id, 1, SLOT_GROUND);
+    MoveItem( item, 1, map, tx, ty );
+    item.EventDrop( cr );
+    cr.EventDropItem( item );
+	item.Update();
+}
+import void CommenceExplosion( Map@ map, uint16 tx, uint16 ty, ProtoItem& weapon ) from "health";
+
+void e_Explode( uint[]& values )     // map id, tx, ty, pid, attacker id
+{
+    Map@ map = GetMap( values[ 0 ] );
+	
+    if( !valid( map ) )
+        return;
+		
+	CommenceExplosion(map, values[1], values[2], GetProtoItem( values[3] ));
+}
+#endif
+
+#ifdef __CLIENT
+bool Active = false;
+int  LastCursor = 0;
+
+import bool getNewThrowing() from "client_main";
+import void setNewThrowing(bool val) from "client_main";
+
+bool ThrowingMouseDown( int click )
+{
+    if( !IsThrowingActive() )
+        return false;
+    TryThrow();
+    return true;
+}
+
+bool IsThrowingActive() // export?
+{
+    return getNewThrowing();
+}
+
+void ThrowingKeyDown( uint8 key )   // export
+{
+    if( key == DIK_GRAVE && !__ConsoleActive )
+        SetThrowing( true );
+}
+
+void ThrowingKeyUp( uint8 key )   // export
+{
+    if( key == DIK_GRAVE )
+        SetThrowing( false );
+}
+
+void ThrowingInputLost() // export
+{
+    SetThrowing( false );
+}
+
+void SetThrowing( bool enabled )
+{
+    if( enabled )
+    {
+        setNewThrowing(true);
+        LastCursor = ::GetCurrentCursor();
+        ChangeCursor( CURSOR_MOVE );         // todo
+    }
+    else
+    {
+        setNewThrowing(false);
+        ChangeCursor( LastCursor );
+    }
+}
+
+void RenderThrowing() // export
+{
+    CritterCl@ chosen = GetChosen();
+    if( !valid( chosen ) )
+        return;
+
+    uint16 hx = 0, hy = 0;
+    if( !GetMonitorHex( __MouseX, __MouseY, hx, hy ) )
+        return;
+    // todo: check for sanity?
+    ItemCl@ item = chosen.GetItem( 0, SLOT_HAND1 );
+    if( !IsThrowableThere( chosen, item, hx, hy ) )
+        return;
+
+    // now we actually render the info
+    int x = 0, y = 0;
+    if( !GetHexPos( hx, hy, x, y ) )
+        return;                           // should not happen
+
+    uint tohit = ::ThrowingToHit( chosen, hx, hy, item.Proto );
+    int  ap = ::ActionPointsCost( item );
+    bool hasAp = ap <= chosen.Param[ST_CURRENT_AP];
+
+    // todo: adjust offsets
+    uint sprite = LoadSprite( item.Proto.PicInv );
+	uint hex = LoadSprite( "fallout_hex2.png", PT_ART_INTRFACE );
+    ::DrawSprite( sprite, -1, x - 50, y - 15, 30, 30, false, COLOR_WHITE, false );
+	::DrawSprite( hex, -1, x - 16, y - 10, 32, 16, true, COLOR_WHITE, true);
+    DrawText( tohit + "%", x + 20, y - 10, 40, 20, COLOR_LGRAY, FONT_FALLOUT, FT_BORDERED );
+    DrawText( ap + " AP", x + 20, y, 40, 20, hasAp ? COLOR_LGRAY : COLOR_RED, FONT_FALLOUT, FT_BORDERED );}
+
+void TryThrow()
+{
+    if( !IsThrowingActive() )
+        return;
+
+    CritterCl@ chosen = GetChosen();
+    if( !valid( chosen ) )
+        return;
+
+    uint16 hx = 0, hy = 0;
+    if( !GetMonitorHex( __MouseX, __MouseY, hx, hy ) )
+        return;
+    // todo: check for sanity?
+    ItemCl@ item = chosen.GetItem( 0, SLOT_HAND1 );
+    if( !IsThrowableThere( chosen, item, hx, hy ) )
+        return;
+
+    // throw
+    RunServerScriptUnsafe( "throwing@unsafe_Throw", hx, hy, 0, null, null );
+}
+#endif

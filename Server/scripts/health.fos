@@ -1,0 +1,1178 @@
+//Health module by PigBoss
+
+#include "_time.fos"
+#include "_colors.fos"
+
+#include "_macros.fos"
+#include "_defines.fos"
+#include "_time.fos"
+#include "_colors.fos"
+#include "rp_notify.fos"
+
+import void QuakeScreen( Critter& cr, uint noise, uint timeMs ) from "effects";
+import void FlushScreen( Critter& cr, uint fromColor, uint toColor, uint timeMs ) from "effects";
+import void Quake_Effect( Critter& cr, int noise, int time ) from "rp_effects";
+import void QuakeScreen( Map& map ) from "effects";
+
+void RightArmCripple( Critter& cr, uint index, int oldValue ){
+	if(oldValue < 1 && cr.Param[index] > 0)
+		Notify(cr, cr, "Правая рука %trgt повисает плетью");
+}
+
+void LeftArmCripple( Critter& cr, uint index, int oldValue ){
+	if(oldValue < 1 && cr.Param[index] > 0)
+		Notify(cr, cr, "Левая рука %trgt повисает плетью");
+}
+
+void RightLegCripple( Critter& cr, uint index, int oldValue ){
+	if(oldValue < 1 && cr.Param[index] > 0)
+		Notify(cr, cr, "Правая нога %trgt приходит в негодность");
+}
+
+void LeftLegCripple( Critter& cr, uint index, int oldValue ){
+	if(oldValue < 1 && cr.Param[index] > 0)
+		Notify(cr, cr, "Левая нога %trgt с хрустом ломается");
+}
+
+void Hunger(Critter& cr, uint index, int oldValue){
+	cr.ParamBase[CR_HUNGER] = CLAMP(cr.ParamBase[CR_HUNGER], 0, 100);
+	if( cr.GetTimeEvents( CTE_HUNGERTHIRST, null, null, null ) == 0){
+		cr.AddTimeEvent("cte_HungerThirst", 1, CTE_HUNGERTHIRST);
+		return;
+	}
+	setMaxAp(cr);
+	if(cr.Param[CR_HUNGER] == 100){
+		cr.Say(SAY_NETMSG, "Вы чувствуете себя сытым");
+	}else if(cr.Param[CR_HUNGER] > 70){
+		cr.Say(SAY_NETMSG, "Вы слегка голодны");
+	}else if(cr.Param[CR_HUNGER] > 40){
+		cr.Say(SAY_NETMSG, "Вы чувствуете сильный голод");
+	}else if(cr.Param[CR_HUNGER] > 10){
+		cr.Say(SAY_NETMSG, "Вы буквально умираете от голода");
+	}else if(cr.Param[CR_HUNGER] == 0){
+		cr.ToDead(ANIM2_DEAD_FRONT, cr);
+		cr.EraseTimeEvents( CTE_HUNGERTHIRST );
+	}
+}
+
+void setMaxAp(Critter@ cr)
+{
+	if(cr.Param[CR_BROKEN_RIBS] != 0)
+	{
+		return;
+	}
+	
+	if(cr.Param[CR_HUNGER] > 70 && cr.Param[CR_THIRST] > 70){
+		cr.ParamBase[ST_ACTION_POINTS] = 100;
+	}else if(cr.Param[CR_HUNGER] > 60 && cr.Param[CR_THIRST] > 60){
+		cr.ParamBase[ST_ACTION_POINTS] = 70;
+	}else if(cr.Param[CR_HUNGER] > 40 && cr.Param[CR_THIRST] > 40){
+		cr.ParamBase[ST_ACTION_POINTS] = 40;
+	}else if(cr.Param[CR_HUNGER] > 20 && cr.Param[CR_THIRST] > 20){
+		cr.ParamBase[ST_ACTION_POINTS] = 30;
+	}
+}
+
+void Thirst(Critter& cr, uint index, int oldValue){
+	cr.ParamBase[CR_THIRST] = CLAMP(cr.ParamBase[CR_THIRST], 0, 100);
+	if( cr.GetTimeEvents( CTE_HUNGERTHIRST, null, null, null ) == 0){
+		cr.AddTimeEvent("cte_HungerThirst", 1, CTE_HUNGERTHIRST);
+		return;
+	}
+	setMaxAp(cr);
+	if(cr.Param[CR_THIRST] == 100){
+		cr.Say(SAY_NETMSG, "Вы больше не чувствуете жажды");
+	}else if(cr.Param[CR_THIRST] > 70){
+		cr.Say(SAY_NETMSG, "Вы слегка хотите пить");
+	}else if(cr.Param[CR_THIRST] > 40){
+		cr.Say(SAY_NETMSG, "Вы чувствуете сильную жажду");
+	}else if(cr.Param[CR_THIRST] > 10){
+		cr.Say(SAY_NETMSG, "Вы умираете от жажды");
+	}else if(cr.Param[CR_THIRST] == 0){
+		cr.ToDead(ANIM2_DEAD_FRONT, cr);
+		cr.EraseTimeEvents( CTE_HUNGERTHIRST );
+	}
+}
+
+uint cte_HungerThirst( Critter& cr, int identifier, uint& rate){
+	
+	if(cr.Param[CR_THIRST] == 0 || cr.Param[CR_HUNGER] == 0)
+		return 0;
+		
+	Map@ map = cr.GetMap();
+	if(valid(map) && map.GetProtoId() != MAP_BLANK){
+		cr.ParamBase[CR_THIRST] -= 10;
+		cr.ParamBase[CR_HUNGER] -= 10;
+	}
+	return REAL_MINUTE(10);
+}
+
+void Bleeding(Critter& cr, uint index, int oldValue){
+	uint8 curValue = cr.ParamBase[ index ];
+	
+	if( curValue <= 0 /*|| cr.IsDead()*/){
+		cr.EraseTimeEvents( CTE_BLEEDING );
+		cr.ParamBase[ CR_BLEEDING ] = 0;
+	}else{
+		if( cr.GetTimeEvents( CTE_BLEEDING, null, null, null ) == 0){
+			cr.AddTimeEvent("cte_Bleeding", 1, CTE_BLEEDING);
+		}
+	}
+}
+
+void spawnBlood(Map@ map, uint16 hexX, uint16 hexY)
+{
+	if(valid(map)){
+		Item@[] items;
+		Item@[] bloods;
+
+		map.GetItems(hexX, hexY, items);
+	
+		int bloodCount = 0;
+		uint protoId = 0;
+		for(uint i = 0; i < items.length; i++ )
+		{
+			Item@ item = map.GetItem(items[i].Id);
+			protoId = item.GetProtoId();
+			
+			if(protoId == SMALL_BLOOD_1 || protoId == SMALL_BLOOD_2 || protoId == SMALL_BLOOD_3)
+			{
+				bloodCount++;
+				bloods.insertLast(item);
+			}
+			
+			if(protoId == BLOOD_1 || protoId == BLOOD_2 || protoId == BLOOD_3)
+			{
+				return;
+			}
+			
+		}
+		
+		if(bloodCount > 2)
+		{
+			DeleteItems(bloods);
+			map.AddItem(hexX, hexY, Random(BLOOD_1, BLOOD_3), 1);
+			return;
+		}
+		
+		map.AddItem(hexX, hexY, Random(SMALL_BLOOD_1, SMALL_BLOOD_3), 1);
+	}
+}
+
+uint cte_Bleeding( Critter& cr, int identifier, uint& rate){
+	Map@ map = cr.GetMap();
+	
+	if(valid(map))
+	{
+		spawnBlood(map, cr.HexX, cr.HexY);
+	}
+	
+	
+	if( cr.ParamBase[ CR_BLEEDING ] > 0 && cr.ParamBase[ CR_BLEEDING ] <= 20){
+		cr.ParamBase[ CR_BLOOD ] -= Random(10, 50);
+		cr.ParamBase[ CR_BLEEDING ] -= 8;
+		cr.Say( SAY_EMOTE_ON_HEAD , "Из раны сочится кровь.");
+		return REAL_SECOND( 15 );
+	}
+	
+	if( cr.ParamBase[ CR_BLEEDING ] > 20 && cr.ParamBase[ CR_BLEEDING ] <= 50){
+		cr.ParamBase[ CR_BLOOD ] -= Random( 50, 100 );
+		cr.ParamBase[ CR_BLEEDING ] -= 5;
+		cr.Say( SAY_EMOTE_ON_HEAD , "Истекает кровью");
+		return REAL_SECOND( 10 );
+	}
+	
+	if( cr.ParamBase[ CR_BLEEDING ] > 50 && cr.ParamBase[ CR_BLEEDING ] <= 70){
+		cr.ParamBase[ CR_BLOOD ] -= Random( 300, 500 );
+		cr.Say( SAY_EMOTE_ON_HEAD , "Из раны идет пульсирующий поток крови");
+		return REAL_SECOND( 7 );	
+	}
+	
+	if( cr.ParamBase[ CR_BLEEDING ] > 70 ){
+		cr.ParamBase[ CR_BLOOD ] -= Random( 500, 700 );
+		cr.Say( SAY_EMOTE_ON_HEAD , "Из раны ручьем льется кровь");
+		return REAL_SECOND( 5 );
+	}
+	
+	return 0;
+}
+
+void Pain( Critter& cr, uint index, int oldValue ){
+	int8 curValue = cr.ParamBase[ index ];
+	if(curValue == 0)
+		return;
+
+	if( curValue > oldValue){
+		cr.ParamBase[ CR_HEARTBEAT ] += curValue / 2;
+		FlushScreen( cr, 0, COLOR_RED, 15);
+		FlushScreen( cr, COLOR_RED, 0, curValue * 100);
+	
+		
+		if(curValue > ( cr.Param[ ST_ENDURANCE ] * 6 + cr.Param[ ST_STRENGTH ] * 6 ) ){
+			if( !cr.IsDead() && !cr.IsKnockout() ){
+				cr.ToKnockout( KNOCKOUT_ANIM2_DEFAULT( true ), 100 + curValue, cr.HexX, cr.HexY );
+				Notify(cr, cr, "%trgt падает на землю от боли");
+			}
+		}
+	}
+	cr.ParamBase[CR_PAIN] = 0;
+}
+
+void HeartBeat( Critter& cr, uint index, int oldValue ){
+	cr.ParamBase[ CR_HEARTBEAT ] = CLAMP(cr.ParamBase[ CR_HEARTBEAT ], 0, 150);
+	if(cr.ParamBase[ CR_HEARTBEAT ] == 0){
+		cr.EraseTimeEvents( CTE_HEARTBEAT );
+		return;
+	}
+	if( cr.GetTimeEvents( CTE_HEARTBEAT, null, null, null ) == 0){
+		cr.AddTimeEvent( "cte_HeartBeat", REAL_SECOND( CLAMP( 150 / cr.ParamBase[ CR_HEARTBEAT ], 1, 2)), CTE_HEARTBEAT);
+	}
+}
+
+uint cte_HeartBeat( Critter& cr, int identifier, uint& rate){
+	
+	if(!cr.IsPlayer())
+		return 0;
+		
+	if(cr.ParamBase[ CR_HEARTBEAT ] <= 0 || cr.IsDead())
+		return 0;
+	
+	QuakeScreen( cr, cr.ParamBase[ CR_HEARTBEAT ] / 4, 200 );
+	cr.ParamBase[ CR_HEARTBEAT ] -= 1;
+	
+	if(cr.ParamBase[ CR_HEARTBEAT ] <= 0)
+		return 0;
+	
+	return REAL_SECOND( CLAMP( 150 / cr.ParamBase[ CR_HEARTBEAT ], 1, 2));
+}
+
+void BloodLevel( Critter& cr, uint index, int oldValue ){
+	
+	cr.ParamBase[CR_BLOOD] = CLAMP(cr.ParamBase[CR_BLOOD], 0, cr.Param[CR_MAXBLOOD]); 
+	
+	if( cr.ParamBase[ CR_BLOOD ] <= 0){
+		cr.ParamBase[ CR_BLEEDING ] = 0;
+	}
+	
+	if( cr.ParamBase[ CR_BLOOD ] < cr.ParamBase[CR_MAXBLOOD] && cr.GetTimeEvents(CTE_BLOODREGEN, null, null, null) == 0 ){
+		cr.AddTimeEvent("cte_BloodRegen", REAL_MINUTE( 1 ), CTE_BLOODREGEN );
+	}
+	
+	if(cr.Param[CR_BLOOD] < 5000 && cr.Param[CR_BLOOD] >= 2000)
+	{
+		cr.Say(SAY_NETMSG, "Голова кружится.");
+	}
+	
+	if( cr.ParamBase[ CR_BLOOD ] < 2000 - cr.ParamBase[ ST_ENDURANCE ] * 100 && Random(0, 10) > cr.ParamBase[ ST_ENDURANCE ] && !cr.IsDead() && !cr.IsKnockout()){
+		cr.Say(SAY_NETMSG, "В глазах темнеет.");
+		cr.ToKnockout( KNOCKOUT_ANIM2_DEFAULT( true ), 1000, cr.HexX, cr.HexY );
+	}	
+	if( cr.ParamBase[ CR_BLOOD ] < 1000 - cr.ParamBase[ ST_ENDURANCE ] * 50 ){
+		cr.ToDead(ANIM2_DEAD_FRONT, GetCritter(cr.ParamBase[LAST_ATTACKER_ID]));
+	}
+}
+
+uint cte_BloodRegen( Critter& cr, int identifier, uint& rate ){
+	if(cr.IsDead())
+		return 0;
+
+	cr.ParamBase[ CR_BLOOD ] += cr.ParamBase[ ST_ENDURANCE ] + cr.ParamBase[ ST_STRENGTH ];
+	
+	if(cr.ParamBase[ CR_BLOOD ] < cr.ParamBase[ CR_MAXBLOOD ])
+		return REAL_MINUTE( 1 );
+	else
+		return 0;
+}
+
+void TorsoDamage( Critter& cr, uint index, int oldValue ){
+	cr.ParamBase[index] = CLAMP(cr.ParamBase[index], 0, 100);
+
+	if(cr.Param[CR_TORSO_DAMAGE] >= 100){
+		cr.ParamBase[CR_BROKEN_RIBS] = 1;
+	}
+	
+	if(cr.Param[CR_TORSO_DAMAGE] == 0){
+		cr.ParamBase[CR_BROKEN_RIBS] = 0;
+	}
+	cr.ParamBase[ CR_PAIN ] += (cr.Param[ CR_TORSO_DAMAGE ]  - oldValue) / 2;
+}
+
+void brokenRibs(Critter& cr, uint index, int oldValue){
+	if(cr.Param[CR_BROKEN_RIBS] == 0){
+		cr.ParamBase[ST_ACTION_POINTS] = 100;
+		cr.Say(SAY_NETMSG, "Дышать снова легко.");
+	}else{
+		cr.ParamBase[ST_ACTION_POINTS] = 30;
+		if(!cr.IsDead())
+			cr.ToKnockout( KNOCKOUT_ANIM2_DEFAULT( true ), 2000, cr.HexX, cr.HexY );
+		cr.Say(SAY_EMOTE, "ребра с хрустом ломаются");
+		cr.Say(SAY_NETMSG, "Тебе становится тяжело дышать.");
+	}
+}
+
+void RightArmDamage( Critter& cr, uint index, int oldValue ){
+	cr.ParamBase[index] = CLAMP(cr.ParamBase[index], 0, 100);
+
+	cr.ParamBase[ CR_PAIN ] += cr.ParamBase[ index ] - oldValue;
+
+	if( cr.Param[ CR_RIGHT_ARM_DAMAGE ] == 0 && cr.Param[CR_RIGHT_ARM_BURN] == 0)
+		cr.ParamBase[DAMAGE_RIGHT_ARM] = 0;
+	
+	if( cr.ParamBase[ CR_RIGHT_ARM_DAMAGE] >= 100)
+		cr.ParamBase[DAMAGE_RIGHT_ARM] = 1;
+}
+
+void LeftLegDamage( Critter& cr, uint index, int oldValue ){
+	cr.ParamBase[index] = CLAMP(cr.ParamBase[index], 0, 100);
+
+	cr.ParamBase[ ST_WALK_TIME] = 400 + cr.ParamBase[ CR_LEFT_LEG_DAMAGE ] * 3;
+	cr.ParamBase[ ST_RUN_TIME ] = 200 + cr.ParamBase[ CR_LEFT_LEG_DAMAGE ] * 5;
+
+	cr.ParamBase[ CR_PAIN ] += cr.ParamBase[ index ] - oldValue;
+	
+	if( cr.ParamBase[ CR_LEFT_LEG_DAMAGE ] == 0 && cr.Param[CR_LEFT_LEG_BURN] == 0)
+		cr.ParamBase[DAMAGE_LEFT_LEG] = 0;
+		
+	if( cr.ParamBase[ CR_LEFT_LEG_DAMAGE ] >= 100)
+		cr.ParamBase[DAMAGE_LEFT_LEG] = 1;
+}
+
+void RightLegDamage( Critter& cr, uint index, int oldValue ){
+	cr.ParamBase[index] = CLAMP(cr.ParamBase[index], 0, 100);
+
+	cr.ParamBase[ ST_WALK_TIME] = 400 + cr.ParamBase[ CR_RIGHT_LEG_DAMAGE] * 3;
+	cr.ParamBase[ ST_RUN_TIME ] = 200 + cr.ParamBase[ CR_RIGHT_LEG_DAMAGE] * 5;
+
+	cr.ParamBase[ CR_PAIN ] += cr.ParamBase[ index ] - oldValue;
+	
+	if( cr.ParamBase[ CR_RIGHT_LEG_DAMAGE ] == 0 && cr.Param[CR_RIGHT_LEG_BURN] == 0)
+		cr.ParamBase[DAMAGE_RIGHT_LEG] = 0;
+		
+	if( cr.ParamBase[ CR_RIGHT_LEG_DAMAGE] >= 100)
+		cr.ParamBase[DAMAGE_RIGHT_LEG] = 1;
+}
+
+void LeftArmDamage( Critter& cr, uint index, int oldValue ){
+	uint8 curValue = cr.ParamBase[ index ];
+	cr.ParamBase[index] = CLAMP(cr.ParamBase[index], 0, 100);
+
+	cr.ParamBase[ CR_PAIN ] += cr.ParamBase[ index ] - oldValue;
+	
+	if( curValue == 0 && cr.Param[CR_LEFT_ARM_BURN] == 0)
+		cr.ParamBase[DAMAGE_LEFT_ARM] = 0;
+		
+	if( curValue >= 100)
+		cr.ParamBase[DAMAGE_LEFT_ARM] = 1;
+}
+
+void InternalsDamage( Critter& cr, uint index, int oldValue ){
+
+	cr.ParamBase[ CR_PAIN ] += cr.ParamBase[ CR_INTERNALS_DAMAGE] - oldValue;
+
+	if(cr.Param[ CR_INTERNALS_DAMAGE ] > oldValue ){
+	
+		if( cr.ParamBase[ CR_INTERNALS_DAMAGE] > 20 && cr.ParamBase[ CR_INTERNALS_DAMAGE] <= 40 ){
+			cr.Say( SAY_NETMSG, "Ты чувствуешь привкус крови во рту." );
+		}
+		
+		if( cr.ParamBase[ CR_INTERNALS_DAMAGE] > 40 && cr.ParamBase[ CR_INTERNALS_DAMAGE] <= 70 ){
+			cr.Say( SAY_NETMSG, "Что-то внутри невыносимо болит." );
+			cr.Say( SAY_EMOTE, "Из рта идет кровь");
+		}
+		
+		if( cr.ParamBase[ CR_INTERNALS_DAMAGE] > 70 + cr.Param[ST_ENDURANCE] && cr.ParamBase[ CR_INTERNALS_DAMAGE] <= 99 + cr.Param[ST_ENDURANCE] * 2 ){
+			cr.Say( SAY_NETMSG, "Боль внутри становится нестерпимой." );
+			Notify(cr, cr, "%trgt падает на землю");
+			if( !cr.IsDead() && cr.Param[ST_ENDURANCE] > Random(0, 10) && !cr.IsKnockout())
+				cr.ToKnockout( KNOCKOUT_ANIM2_DEFAULT( true ), Random(500, 700), cr.HexX, cr.HexY );
+		}
+		
+		if( cr.ParamBase[ CR_INTERNALS_DAMAGE] > 99 + cr.Param[ST_ENDURANCE] * 2 &&  cr.Param[ CR_INTERNALS_DAMAGE ] - oldValue > cr.Param[ST_ENDURANCE] + cr.Param[ST_STRENGTH] + Random(0, 10)){
+			cr.Say( SAY_NETMSG, "Похоже твоё сердце больше не бьется." );
+			Notify(cr, cr, "%trgt оседает на землю");
+			cr.ParamBase[ CR_HEARTBEAT ] = 0;
+			if(cr.Param[CR_DEATH_ANIM] == 0 || cr.IsKnockout()){
+				cr.ToDead(ANIM2_DEAD_FRONT, GetCritter(cr.ParamBase[LAST_ATTACKER_ID]));
+			}
+			else{
+				cr.ToDead(cr.Param[CR_DEATH_ANIM], GetCritter(cr.ParamBase[LAST_ATTACKER_ID]));
+			}
+		}
+	}
+	cr.ParamBase[index] = CLAMP(cr.ParamBase[index], 0, 150);
+}
+
+void HeadDamage( Critter& cr, uint index, int oldValue ){
+	cr.ParamBase[ CR_PAIN ] += cr.ParamBase[ index ] - oldValue;
+	
+	if( cr.Param[ CR_HEAD_DAMAGE ] > oldValue)
+	{
+		if( cr.ParamBase[ CR_HEAD_DAMAGE ] >= 100 && cr.Param[ CR_HEAD_DAMAGE ] - oldValue > ( cr.Param[ST_ENDURANCE] + cr.Param[ST_STRENGTH] ) * 2 + Random(0, 10)){
+			Notify(cr, cr, "Голова %trgt превращается в кровавое месиво");
+			cr.ToDead(ANIM2_DEAD_BLOODY_SINGLE, GetCritter(cr.ParamBase[LAST_ATTACKER_ID]));
+		}else if(cr.ParamBase[ CR_HEAD_DAMAGE ] >= 80 + (cr.Param[ST_ENDURANCE] * 2))
+		{
+			Notify(cr, cr, "Голова %trgt отвратительно хрустнула");
+			cr.ToKnockout( KNOCKOUT_ANIM2_DEFAULT( true ), Random(1000, 1300), cr.HexX, cr.HexY );
+			FlushScreen( cr, 0, COLOR_BLACK, 15);
+			FlushScreen( cr, COLOR_BLACK, 0, 2000);
+		}
+	}
+	cr.ParamBase[index] = CLAMP(cr.ParamBase[index], 0, 100);
+}
+
+void LeftArmBurn( Critter& cr, uint index, int oldValue ){
+	cr.ParamBase[index] = CLAMP(cr.ParamBase[index], 0, 100);
+
+	cr.ParamBase[ CR_PAIN ] += cr.ParamBase[ index ] - oldValue;
+	
+	if( cr.Param[ CR_LEFT_ARM_DAMAGE ] == 0 && cr.Param[CR_LEFT_ARM_BURN] == 0)
+		cr.ParamBase[DAMAGE_LEFT_ARM] = 0;
+
+	if( cr.ParamBase[ CR_LEFT_ARM_BURN ] >= 100)
+		cr.ParamBase[DAMAGE_LEFT_ARM] = 1;
+}
+
+void RightArmBurn( Critter& cr, uint index, int oldValue ){
+	cr.ParamBase[index] = CLAMP(cr.ParamBase[index], 0, 100);
+
+	cr.ParamBase[ CR_PAIN ] += cr.ParamBase[ index ] - oldValue;
+	
+	if( cr.Param[ CR_RIGHT_ARM_DAMAGE ] == 0 && cr.Param[CR_RIGHT_ARM_BURN] == 0)
+		cr.ParamBase[DAMAGE_RIGHT_ARM] = 0;
+
+	if( cr.ParamBase[ CR_RIGHT_ARM_BURN ] >= 100)
+		cr.ParamBase[DAMAGE_RIGHT_ARM] = 1;
+}
+
+void LeftLegBurn( Critter& cr, uint index, int oldValue ){
+	cr.ParamBase[index] = CLAMP(cr.ParamBase[index], 0, 100);
+
+	cr.ParamBase[ CR_PAIN ] += cr.ParamBase[ index ] - oldValue;
+	
+	if( cr.Param[ CR_LEFT_LEG_DAMAGE ] == 0 && cr.Param[CR_LEFT_LEG_BURN] == 0)
+		cr.ParamBase[DAMAGE_LEFT_LEG] = 0;
+
+	if( cr.ParamBase[ CR_LEFT_LEG_BURN ] >= 100)
+		cr.ParamBase[DAMAGE_LEFT_LEG] = 1;
+}
+
+void RightLegBurn( Critter& cr, uint index, int oldValue ){
+	cr.ParamBase[index] = CLAMP(cr.ParamBase[index], 0, 100);
+
+	cr.ParamBase[ CR_PAIN ] += cr.ParamBase[ index ] - oldValue;
+
+	if( cr.Param[ CR_RIGHT_LEG_DAMAGE ] == 0 && cr.Param[CR_RIGHT_LEG_BURN] == 0)
+		cr.ParamBase[DAMAGE_RIGHT_LEG] = 0;
+
+	if( cr.ParamBase[ CR_RIGHT_LEG_BURN ] >= 100)
+		cr.ParamBase[DAMAGE_RIGHT_LEG] = 1;
+}
+
+void TorsoBurn( Critter& cr, uint index, int oldValue ){
+	cr.ParamBase[index] = CLAMP(cr.ParamBase[index], 0, 100);
+
+	cr.ParamBase[ CR_PAIN ] += cr.ParamBase[ index ] - oldValue;
+
+	if( cr.ParamBase[ CR_TORSO_BURN ] >= 100 ){
+		Notify(cr, cr, "Пламя охватывает %trgt");
+		cr.ToDead(Random(0, 1) == 0 ? ANIM2_DEAD_BURN_RUN : ANIM2_DEAD_BURN, GetCritter(cr.ParamBase[LAST_ATTACKER_ID]));
+	}
+}
+
+void HeadBurn( Critter& cr, uint index, int oldValue ){
+	
+	cr.ParamBase[index] = CLAMP(cr.ParamBase[index], 0, 100);
+
+	cr.ParamBase[ CR_PAIN ] += cr.ParamBase[ index ] - oldValue;
+
+	if( cr.ParamBase[CR_HEAD_BURN] >= 100 ){
+		Notify(cr, cr, "%trgt вспыхнул как свеча");
+		cr.ToDead(Random(0, 1) == 0 ? ANIM2_DEAD_BURN_RUN : ANIM2_DEAD_BURN, GetCritter(cr.ParamBase[LAST_ATTACKER_ID]));
+	}
+}
+	
+void InjureCritter(Critter& target, Critter& attacker, ProtoItem@ ammo, uint aim){
+	if(target.Mode[MODE_HIDE] > 0)
+	{
+		target.ModeBase[MODE_HIDE] = 0;
+	}
+	uint8 mode = 0;
+	ProtoItem@ protoWeapon = attacker.GetSlotProto(SLOT_HAND1, mode);
+	ProtoItem@ trgtArmor = target.GetSlotProto(SLOT_ARMOR, mode);
+
+    int dist = GetDistantion( attacker.HexX, attacker.HexY, target.HexX, target.HexY );
+	int armorClass = 0;
+	target.ParamBase[LAST_ATTACKER_ID] = attacker.Id;
+	if(valid(trgtArmor)){
+		armorClass = getArmorClass(aim, trgtArmor);
+	}
+	Item@ weapon = _CritGetItemHand(attacker);
+	if( valid(weapon) && protoWeapon.Weapon_Type == WEAPON_TYPE_GUN && valid(ammo)){
+		int apLoss = CLAMP( dist / CLAMP(ammo.Ammo_APLoss, 1, 100), 0, 3 );
+		int ap = CLAMP(ammo.Ammo_APLevel - apLoss, 0, 5);
+		if(armorClass <= ap || armorClass == 0 || protoWeapon.Weapon_DmgType_0 != DAMAGE_NORMAL){
+			switch(protoWeapon.Weapon_DmgType_0){
+				case DAMAGE_NORMAL:
+					InjureCritterBullet(target, attacker, ammo, aim, dist);
+					break;
+				case DAMAGE_LASER:
+				case DAMAGE_PLASMA:
+					InjureCritterBurn(target, attacker, protoWeapon, aim);
+					break;
+			}
+			return;
+		}else{
+			InjureCritterBlunt(target, attacker, ammo, aim);
+		}
+	}else{
+		int ap = 0;
+		switch(ammo.Weapon_Type){
+			case WEAPON_TYPE_BLADE:
+			ap=(attacker.Skill[protoWeapon.Weapon_Skill_0] + (attacker.Stat[ST_STRENGTH] * 10)) / Random(100, 140);
+			if(ap >= armorClass){
+					InjureCritterBlade(target, attacker, ammo, aim);
+					return;
+				}
+			case WEAPON_TYPE_PENETRATION:
+			ap=(attacker.Skill[protoWeapon.Weapon_Skill_0]  + (attacker.Stat[ST_STRENGTH] * 10)) / Random(80, 120);
+			if(ap >= armorClass){
+					InjureCritterThrust(target, attacker, ammo, aim);
+					return;
+				}
+			case WEAPON_TYPE_BLUNT:
+				InjureCritterBlunt(target, attacker, ammo, aim);
+				return;
+		}
+		InjureCritterBlunt(target, attacker, ammo, aim);
+	}
+	return;
+}
+
+void InjureCritterBullet( Critter& cr, Critter& attacker, ProtoItem@ ammo, uint8 aim, uint dist ){
+	uint8 mode = 0;
+	Map@ map = cr.GetMap();
+	ProtoItem@ armor = cr.GetSlotProto( SLOT_ARMOR, mode );
+
+	bool attackFront = true;
+    uint dir = GetDirection( attacker.HexX, attacker.HexY, cr.HexX, cr.HexY );
+    if( ( dir == cr.Dir || ( ( dir + 1 ) % 6 ) == cr.Dir || ( ( dir + 5 ) % 6 ) == cr.Dir ) )
+        attackFront = false;
+	
+	int force = CLAMP( ammo.Ammo_Force  - (getArmorClass(aim, armor) * 5), 0, 300);
+	if(force == 0){
+		Notify(attacker, cr, "Выстрел %atcr в %trgt не нанес повреждений" );
+	}
+	switch( aim )
+	{
+	case HIT_LOCATION_NONE:
+	case HIT_LOCATION_UNCALLED:
+	case HIT_LOCATION_TORSO:
+	case HIT_LOCATION_GROIN:
+		cr.ParamBase[ CR_TORSO_DAMAGE ] += Random((force / 4) * 3, force);
+		cr.ParamBase[ CR_INTERNALS_DAMAGE ] += Random(force / 2, force);
+		cr.ParamBase[ CR_BLEEDING ] += Random(force / 2, force);
+		if( cr.ParamBase[ ST_STRENGTH ] * 3 < force && !cr.IsDead()  && !cr.IsKnockout())
+			cr.ToKnockout( KNOCKOUT_ANIM2_DEFAULT( true ), Random(300, 400), cr.HexX, cr.HexY );
+		break;
+	case HIT_LOCATION_EYES:
+	case HIT_LOCATION_HEAD:
+		cr.ParamBase[ CR_HEAD_DAMAGE ] += Random(force, force * 2);
+		cr.ParamBase[ CR_BLEEDING ] += Random(force / 2, force);
+		DropWeapon(cr);
+		if( !cr.IsDead()&& !cr.IsKnockout() && cr.Param[ST_LUCK] < Random(0, 10)) 
+			cr.ToKnockout( KNOCKOUT_ANIM2_DEFAULT( true ), Random(1000, 1500), cr.HexX, cr.HexY );
+		break;
+	case HIT_LOCATION_LEFT_ARM:
+		DropWeapon(cr);
+		cr.ParamBase[ CR_LEFT_ARM_DAMAGE ] += Random(force, force + (force / 2));
+		cr.ParamBase[ CR_BLEEDING ] += Random(force, force * 2);
+		break;
+	case HIT_LOCATION_RIGHT_ARM:
+		DropWeapon(cr);
+		cr.ParamBase[ CR_RIGHT_ARM_DAMAGE ] += Random(force, force + (force / 2));
+		cr.ParamBase[ CR_BLEEDING ] += Random(force, force * 2);;
+		break;
+	case HIT_LOCATION_RIGHT_LEG:
+		cr.ParamBase[ CR_RIGHT_LEG_DAMAGE ] += Random(force / 2, force + (force / 2));
+		cr.ParamBase[ CR_BLEEDING ] += Random(force, force * 2);
+		if( cr.ParamBase[ ST_STRENGTH ] * 3 < force / 2 && !cr.IsDead()&& !cr.IsKnockout() )
+			cr.ToKnockout( KNOCKOUT_ANIM2_DEFAULT( true ), Random(100, 180), cr.HexX, cr.HexY );
+		break;
+	case HIT_LOCATION_LEFT_LEG:
+		cr.ParamBase[ CR_LEFT_LEG_DAMAGE ] += Random(force / 2, force + (force / 2));
+		cr.ParamBase[ CR_BLEEDING ] += Random(force, force * 2);
+		if( cr.ParamBase[ ST_STRENGTH ] * 3 < force / 2 && !cr.IsDead() && !cr.IsKnockout() )
+			cr.ToKnockout( KNOCKOUT_ANIM2_DEFAULT( true ), Random(100, 180), cr.HexX, cr.HexY );
+		break;
+	default:
+		break;
+	}
+	Notify(attacker, cr, "%trgt был ранен в " + getStrHitLocation(aim) + " выстрелом %atcr" );
+	cr.ParamBase[CR_DEATH_ANIM] = ammo.Ammo_Type == AMMO_TYPE_SHOT ? ANIM2_DEAD_BLOODY_SINGLE : ANIM2_DEAD_BURST;
+	cr.Action( ACTION_DAMAGE_FORCE, attackFront ? 0 : 1, null );
+}
+
+void GenericInjureCritterBlunt(Critter& cr, uint force, uint8 aim){
+	uint8 mode = 0;
+	ProtoItem@ armor = cr.GetSlotProto( SLOT_ARMOR, mode );
+
+	if(!armor.Armor_IsFlexible){
+		force = CLAMP(force - getArmorClass(aim, armor) * 15, 0, 300);
+	}
+	
+	switch( aim )
+	{
+	case HIT_LOCATION_NONE:
+	case HIT_LOCATION_UNCALLED:
+	case HIT_LOCATION_TORSO:
+	case HIT_LOCATION_GROIN:
+		cr.ParamBase[ CR_TORSO_DAMAGE ] += Random(force / 2, force);
+		cr.ParamBase[ CR_INTERNALS_DAMAGE ] += Random(force / 3, force / 2);
+		break;
+	case HIT_LOCATION_EYES:
+	case HIT_LOCATION_HEAD:
+		cr.ParamBase[ CR_HEAD_DAMAGE ] += Random(force / 2, force);
+		if( cr.ParamBase[ ST_STRENGTH ] < (force / 10) + Random(0, 5) && !cr.IsDead() )
+			DropWeapon(cr);
+		break;
+	case HIT_LOCATION_LEFT_ARM:
+		if( cr.ParamBase[ ST_STRENGTH ] < (force / 10) + Random(0, 5) && !cr.IsDead() )
+			DropWeapon(cr);
+		cr.ParamBase[ CR_LEFT_ARM_DAMAGE ] += Random(force / 2, force);
+		break;
+	case HIT_LOCATION_RIGHT_ARM:
+		DropWeapon(cr);
+		cr.ParamBase[ CR_RIGHT_ARM_DAMAGE ] += Random(force / 2, force);
+		break;
+	case HIT_LOCATION_RIGHT_LEG:
+		cr.ParamBase[ CR_RIGHT_LEG_DAMAGE ] += Random(force / 2, force);
+		break;
+	case HIT_LOCATION_LEFT_LEG:
+		cr.ParamBase[ CR_LEFT_LEG_DAMAGE ] += Random(force / 2, force);
+		break;
+	default:
+		break;
+	}
+	
+	Notify(cr, cr, "%trgt был ранен в " + getStrHitLocation(aim) );
+	cr.ParamBase[CR_DEATH_ANIM] = ANIM2_DEAD_FRONT;
+	cr.Action( ACTION_DAMAGE_FORCE, Random(0, 1), null );
+
+}
+
+void InjureCritterBlunt( Critter& cr, Critter& attacker, ProtoItem& weapon, uint8 aim ){
+	uint8 mode = 0;
+	ProtoItem@ armor = cr.GetSlotProto( SLOT_ARMOR, mode );
+	Map@ map = cr.GetMap();
+	
+	bool attackFront = true;
+    uint dir = GetDirection( attacker.HexX, attacker.HexY, cr.HexX, cr.HexY );
+    if( ( dir == cr.Dir || ( ( dir + 1 ) % 6 ) == cr.Dir || ( ( dir + 5 ) % 6 ) == cr.Dir ) )
+        attackFront = false;
+	int force = 0;
+	
+	int armorClass = getArmorClass(aim, armor);
+
+	if(!weapon.Weapon_IsUnarmed)
+		force = (weapon.Weight / 100)  * (attacker.ParamBase[ ST_STRENGTH ] / 2);
+	else
+		force = attacker.ParamBase[ ST_STRENGTH ] * weapon.Weapon_Force;
+	
+
+	if(valid(weapon) && weapon.Ammo_Force > 0 && !armor.Armor_IsFlexible)
+		force = weapon.Ammo_Force - armorClass * 10;
+	else if(!armor.Armor_IsFlexible)
+		force = CLAMP(force - armorClass * 10, 0, 300);
+	
+	force = CLAMP(force, 0, 1000);
+	if(force == 0){
+		Notify(attacker, cr, "%trgt не получил повреждений от удара в " + getStrHitLocation(aim) + " от %atcr" );
+		return;
+	}
+	uint16 knockDist = CLAMP(force - cr.ParamBase[ ST_STRENGTH ] * 3, 0, 5);
+	uint16 knockHx = attacker.HexX;
+    uint16 knockHy = attacker.HexY;
+    map.GetHexCoordWall( cr.HexX, cr.HexY, knockHx, knockHy, 180.0f, knockDist );
+	switch( aim )
+	{
+	case HIT_LOCATION_NONE:
+	case HIT_LOCATION_UNCALLED:
+	case HIT_LOCATION_TORSO:
+	case HIT_LOCATION_GROIN:
+		cr.ParamBase[ CR_TORSO_DAMAGE ] += Random(force / 2, force);
+		cr.ParamBase[ CR_INTERNALS_DAMAGE ] += Random(force / 3, force / 2);
+		break;
+	case HIT_LOCATION_EYES:
+	case HIT_LOCATION_HEAD:
+		cr.ParamBase[ CR_HEAD_DAMAGE ] += Random(force / 2, force);
+		if( cr.ParamBase[ ST_STRENGTH ] < (force / 10) + Random(0, 3) && !cr.IsDead() )
+			DropWeapon(cr);
+		if( !cr.IsDead() && !cr.IsKnockout() && cr.Param[ ST_STRENGTH ] + cr.Param[ST_ENDURANCE] < force + Random(0, 5))
+			cr.ToKnockout( KNOCKOUT_ANIM2_DEFAULT( attackFront ), CLAMP((force + 200), 0, 100), cr.HexX, cr.HexY );
+		break;
+	case HIT_LOCATION_LEFT_ARM:
+		if( cr.ParamBase[ ST_STRENGTH ] < (force / 10) + Random(0, 3) && !cr.IsDead() )
+			DropWeapon(cr);
+		cr.ParamBase[ CR_LEFT_ARM_DAMAGE ] += Random(force / 2, force);
+		break;
+	case HIT_LOCATION_RIGHT_ARM:
+		if( cr.ParamBase[ ST_STRENGTH ] < (force / 10) + Random(0, 3) && !cr.IsDead() )
+			DropWeapon(cr);
+		cr.ParamBase[ CR_RIGHT_ARM_DAMAGE ] += Random(force / 2, force);
+		break;
+	case HIT_LOCATION_RIGHT_LEG:
+		cr.ParamBase[ CR_RIGHT_LEG_DAMAGE ] += Random(force / 2, force);
+		if( cr.ParamBase[ ST_STRENGTH ]  < force / 5 && !cr.IsDead() && !cr.IsKnockout())
+			cr.ToKnockout( KNOCKOUT_ANIM2_DEFAULT( attackFront ), Random(50, 100), knockHx, knockHy );
+		break;
+	case HIT_LOCATION_LEFT_LEG:
+		cr.ParamBase[ CR_LEFT_LEG_DAMAGE ] += Random(force / 2, force);
+		if( cr.ParamBase[ ST_STRENGTH ] < force / 5 && !cr.IsDead() && !cr.IsKnockout())
+			cr.ToKnockout( KNOCKOUT_ANIM2_DEFAULT( attackFront ), Random(50, 100), knockHx, knockHy );
+		break;
+	default:
+		break;
+	}
+	Notify(attacker, cr, "%trgt был ранен в " + getStrHitLocation(aim) + " ударом %atcr" );
+	cr.ParamBase[CR_DEATH_ANIM] = ANIM2_DEAD_FRONT;
+	cr.Action( ACTION_DAMAGE_FORCE, attackFront ? 0 : 1, null );
+	
+}
+
+void InjureCritterBlade( Critter& cr, Critter& attacker, ProtoItem& weapon, uint8 aim ){
+	uint8 mode = 0;
+	ProtoItem@ armor = cr.GetSlotProto( SLOT_ARMOR, mode );
+	Map@ map = cr.GetMap();
+	
+	bool attackFront = true;
+    uint dir = GetDirection( attacker.HexX, attacker.HexY, cr.HexX, cr.HexY );
+    if( ( dir == cr.Dir || ( ( dir + 1 ) % 6 ) == cr.Dir || ( ( dir + 5 ) % 6 ) == cr.Dir ) )
+        attackFront = false;
+		
+	int force = CLAMP(weapon.Weapon_Sharpness - getArmorClass(aim, armor) * 15, 0, 300);
+	force = CLAMP(force, 0, 1000);
+	if(force == 0){
+		Notify(attacker, cr, "%trgt не получил повреждений от удара в " + getStrHitLocation(aim) + " от %atcr" );
+		return;
+	}
+	switch( aim )
+	{
+	case HIT_LOCATION_NONE:
+	case HIT_LOCATION_UNCALLED:
+	case HIT_LOCATION_TORSO:
+	case HIT_LOCATION_GROIN:
+		cr.ParamBase[ CR_TORSO_DAMAGE ] += Random(force / 5, force / 2);
+		cr.ParamBase[ CR_BLEEDING ] += Random(force, force * 3);
+		cr.ParamBase[ CR_INTERNALS_DAMAGE ] += Random(force / 5, force / 2);
+		break;
+	case HIT_LOCATION_EYES:
+	case HIT_LOCATION_HEAD:
+		cr.ParamBase[ CR_HEAD_DAMAGE ] += Random(force / 5, force / 2);
+		cr.ParamBase[ CR_BLEEDING ] += Random(force / 2, force);
+		if( cr.ParamBase[ ST_STRENGTH ] + cr.ParamBase[ ST_ENDURANCE ] + Random(0, 10) < force)
+			DropWeapon(cr);
+		break;
+	case HIT_LOCATION_LEFT_ARM:
+		if( cr.ParamBase[ ST_STRENGTH ] + cr.ParamBase[ ST_ENDURANCE ] + Random(5, 12) < force)
+			DropWeapon(cr);
+		cr.ParamBase[ CR_LEFT_ARM_DAMAGE ] += Random(force / 5, force / 2);
+		cr.ParamBase[ CR_BLEEDING ] += Random(force, force * 3);
+		break;
+	case HIT_LOCATION_RIGHT_ARM:
+		if( cr.ParamBase[ ST_STRENGTH ] + cr.ParamBase[ ST_ENDURANCE ] + Random(5, 12) < force)
+			DropWeapon(cr);
+		cr.ParamBase[ CR_RIGHT_ARM_DAMAGE ] += Random(force / 5, force / 2);
+		cr.ParamBase[ CR_BLEEDING ] += Random(force, force * 3);
+		break;
+	case HIT_LOCATION_RIGHT_LEG:
+		cr.ParamBase[ CR_RIGHT_LEG_DAMAGE ] += Random(force / 5, force / 2);
+		cr.ParamBase[ CR_BLEEDING ] += Random(force + (force / 2), force * 3);
+		break;
+	case HIT_LOCATION_LEFT_LEG:
+		cr.ParamBase[ CR_LEFT_LEG_DAMAGE ] += Random(force / 5, force / 2);
+		cr.ParamBase[ CR_BLEEDING ] += Random(force, force * 3);
+		break;
+	default:
+		break;
+	}
+	cr.ParamBase[CR_DEATH_ANIM] = ANIM2_DEAD_FRONT;
+	Notify(attacker, cr, "%trgt был ранен в " + getStrHitLocation(aim) + " ударом %atcr" );
+	cr.Action( ACTION_DAMAGE_FORCE, attackFront ? 0 : 1, null );
+	
+}
+
+void InjureCritterThrust( Critter& cr, Critter& attacker, ProtoItem& weapon, uint8 aim ){
+	uint8 mode = 0;
+	ProtoItem@ armor = cr.GetSlotProto( SLOT_ARMOR, mode );
+	Map@ map = cr.GetMap();
+	
+	bool attackFront = true;
+    uint dir = GetDirection( attacker.HexX, attacker.HexY, cr.HexX, cr.HexY );
+    if( ( dir == cr.Dir || ( ( dir + 1 ) % 6 ) == cr.Dir || ( ( dir + 5 ) % 6 ) == cr.Dir ) )
+        attackFront = false;
+		
+	int force =  attacker.ParamBase[ ST_STRENGTH ] + CLAMP(weapon.Weapon_Sharpness - getArmorClass(aim, armor) * 15, 0, 300);
+	force = CLAMP(force - getArmorClass(aim, armor) * 25, 0, 300);
+	if(force == 0){
+		Notify(attacker, cr, "%trgt не получил повреждений от удара в " + getStrHitLocation(aim) + " от %atcr" );
+		return;
+	}
+	switch( aim )
+	{
+	case HIT_LOCATION_NONE:
+	case HIT_LOCATION_UNCALLED:
+	case HIT_LOCATION_TORSO:
+	case HIT_LOCATION_GROIN:
+		cr.ParamBase[ CR_TORSO_DAMAGE ] += Random(force / 2, force);
+		cr.ParamBase[ CR_BLEEDING ] += Random( force / 2, force );
+		cr.ParamBase[ CR_INTERNALS_DAMAGE ] += force / 2;
+		break;
+	case HIT_LOCATION_EYES:
+	case HIT_LOCATION_HEAD:
+		cr.ParamBase[ CR_HEAD_DAMAGE ] += Random(force / 2, force);
+		cr.ParamBase[ CR_BLEEDING ] += force / 2;
+		if( cr.ParamBase[ ST_STRENGTH ] + cr.ParamBase[ ST_ENDURANCE ] + Random(0, 10) < force)
+			DropWeapon(cr);
+		break;
+	case HIT_LOCATION_LEFT_ARM:
+		if( cr.ParamBase[ ST_STRENGTH ] + cr.ParamBase[ ST_ENDURANCE ] + Random(5, 12) < force)
+			DropWeapon(cr);
+		cr.ParamBase[ CR_LEFT_ARM_DAMAGE ] += Random(force / 2, force);
+		cr.ParamBase[ CR_BLEEDING ] += Random(force, force + (force / 2));
+		break;
+	case HIT_LOCATION_RIGHT_ARM:
+		if( cr.ParamBase[ ST_STRENGTH ] + cr.ParamBase[ ST_ENDURANCE ] + Random(5, 12) < force)
+			DropWeapon(cr);
+		cr.ParamBase[ CR_RIGHT_ARM_DAMAGE ] += Random(force / 2, force);
+		cr.ParamBase[ CR_BLEEDING ] += Random(force, force + (force / 2));
+		break;
+	case HIT_LOCATION_RIGHT_LEG:
+		cr.ParamBase[ CR_RIGHT_LEG_DAMAGE ] += Random(force / 2, force);
+		cr.ParamBase[ CR_BLEEDING ] += Random(force, force + (force / 2));
+		break;
+	case HIT_LOCATION_LEFT_LEG:
+		cr.ParamBase[ CR_LEFT_LEG_DAMAGE ] += Random(force / 2, force);
+		cr.ParamBase[ CR_BLEEDING ] += Random(force, force + (force / 2));
+		break;
+	default:
+		break;
+	}
+	cr.ParamBase[CR_DEATH_ANIM] = ANIM2_DEAD_FRONT;
+	Notify(attacker, cr, "%trgt был ранен в " + getStrHitLocation(aim) + " ударом %atcr" );
+	cr.Action( ACTION_DAMAGE_FORCE, attackFront ? 0 : 1, null );
+	}
+
+void InjureCritterBurn( Critter& cr, Critter& attacker, ProtoItem& weapon, uint8 aim ){
+	uint8 mode = 0;
+	ProtoItem@ armor = cr.GetSlotProto( SLOT_ARMOR, mode );
+	Map@ map = cr.GetMap();
+	
+	bool attackFront = true;
+    uint dir = GetDirection( attacker.HexX, attacker.HexY, cr.HexX, cr.HexY );
+    if( ( dir == cr.Dir || ( ( dir + 1 ) % 6 ) == cr.Dir || ( ( dir + 5 ) % 6 ) == cr.Dir ) )
+        attackFront = false;
+		
+	int force = CLAMP(weapon.Weapon_Force - getArmorClass(aim, armor) * 15, 0, 300);
+	if(force == 0){
+		Notify(attacker, cr, "%trgt не получил повреждений от попадания в " + getStrHitLocation(aim) + " от %atcr" );
+		return;
+	}
+	force = Random(force / 2, force);
+	switch( aim )
+	{
+	case HIT_LOCATION_NONE:
+	case HIT_LOCATION_UNCALLED:
+	case HIT_LOCATION_TORSO:
+	case HIT_LOCATION_GROIN:
+		cr.ParamBase[ CR_TORSO_BURN ] += force;
+		break;
+	case HIT_LOCATION_EYES:
+	case HIT_LOCATION_HEAD:
+		cr.ParamBase[CR_HEAD_BURN] += force;
+		if( cr.ParamBase[ ST_STRENGTH ] + cr.ParamBase[ ST_ENDURANCE ] + Random(0, 10) < force)
+			DropWeapon(cr);
+		break;
+	case HIT_LOCATION_LEFT_ARM:
+		if( cr.ParamBase[ ST_STRENGTH ] + cr.ParamBase[ ST_ENDURANCE ] + Random(6, 15) < force)
+			DropWeapon(cr);
+		cr.ParamBase[ CR_LEFT_ARM_BURN ] += force;
+		break;
+	case HIT_LOCATION_RIGHT_ARM:
+		if( cr.ParamBase[ ST_STRENGTH ] + cr.ParamBase[ ST_ENDURANCE ] + Random(6, 15) < force)
+			DropWeapon(cr);
+		cr.ParamBase[ CR_RIGHT_ARM_BURN ] += force;
+		break;
+	case HIT_LOCATION_RIGHT_LEG:
+		cr.ParamBase[ CR_RIGHT_LEG_BURN ] += force;
+		break;
+	case HIT_LOCATION_LEFT_LEG:
+		cr.ParamBase[ CR_LEFT_LEG_BURN ] += force;
+		break;
+	default:
+		break;
+	}
+	if( cr.ParamBase[ CR_BLEEDING ] > 0 )
+		cr.ParamBase[ CR_BLEEDING ] = 0;
+	Notify(attacker, cr, "%trgt был ранен в " + getStrHitLocation(aim) + " %atcr" );
+	cr.Action( ACTION_DAMAGE_FORCE, attackFront ? 0 : 1, null );
+}
+
+void InjureCritterExplode( Critter& cr, ProtoItem& grenade, uint16 hX, uint16 hY ){
+	uint8 mode = 0;
+	ProtoItem@ armor = cr.GetSlotProto( SLOT_ARMOR, mode );
+	Map@ map = cr.GetMap();
+	bool attackFront = true;
+    uint dir = GetDirection( hX, hY, cr.HexX, cr.HexY );
+    if( ( dir == cr.Dir || ( ( dir + 1 ) % 6 ) == cr.Dir || ( ( dir + 5 ) % 6 ) == cr.Dir ) )
+        attackFront = false;
+	
+	uint dist = GetDistantion(cr.HexX, cr.HexY, hX, hY);
+	
+	int force = CLAMP(grenade.Weapon_Force - dist * dist * dist, 0, 1000);
+	if(dist < 1){
+		cr.ToDead(ANIM2_DEAD_EXPLODE, null);
+	}
+	if(force == 0){
+		return;
+	}
+	
+	uint16 knockDist = CLAMP(force - cr.ParamBase[ ST_STRENGTH ] + cr.ParamBase[ ST_ENDURANCE ], 0, 10);
+	uint16 knockHx = cr.HexX;
+    uint16 knockHy = cr.HexY;
+	map.MoveHexByDir(knockHx, knockHy, dir, knockDist);
+    map.GetHexCoord( hX, hY, knockHx, knockHy, 0.0f, 0 );
+	if(!cr.IsDead() && !cr.IsKnockout())
+		cr.ToKnockout( KNOCKOUT_ANIM2_DEFAULT( attackFront ), Random(300, 700), knockHx, knockHy );
+
+		
+	force = Random(force, force * 3);
+	cr.Say(SAY_NETMSG, "Force:" + force);
+	int damage = force;
+	if(getArmorClass(HIT_LOCATION_TORSO, armor) <= Random(1,2)){
+		damage = CLAMP(force - getArmorClass(HIT_LOCATION_TORSO, armor) * 10, 0, 300);
+		cr.ParamBase[ CR_TORSO_DAMAGE ] += damage;
+		cr.ParamBase[ CR_BLEEDING ] += damage;
+		cr.ParamBase[ CR_INTERNALS_DAMAGE ] += damage;
+	}
+	if(getArmorClass(HIT_LOCATION_HEAD, armor) <= Random(1,2)){
+		damage = CLAMP(force - getArmorClass(HIT_LOCATION_HEAD, armor) * 10, 0, 300);
+		cr.ParamBase[ CR_HEAD_DAMAGE ] += damage;
+	}
+	if( cr.ParamBase[ ST_STRENGTH ] + cr.ParamBase[ ST_ENDURANCE ] + Random(0, 10) < force)
+		DropWeapon(cr);
+		
+	if(getArmorClass(HIT_LOCATION_LEFT_ARM, armor) <= Random(1,2)){
+		damage = CLAMP(force - getArmorClass(HIT_LOCATION_LEFT_ARM, armor) * 10, 0, 300);
+		cr.ParamBase[ CR_LEFT_ARM_DAMAGE ] += damage;
+    }
+	if(getArmorClass(HIT_LOCATION_RIGHT_ARM, armor) <= Random(1,2)){
+		damage = CLAMP(force - getArmorClass(HIT_LOCATION_RIGHT_ARM, armor) * 10, 0, 300);
+		cr.ParamBase[ CR_RIGHT_ARM_DAMAGE ] += damage;
+	}
+	if(getArmorClass(HIT_LOCATION_RIGHT_LEG, armor) <= Random(1,2)){
+		damage = CLAMP(force - getArmorClass(HIT_LOCATION_RIGHT_LEG, armor) * 10, 0, 300);
+		cr.ParamBase[ CR_RIGHT_LEG_DAMAGE ] += damage;
+	}	
+	if(getArmorClass(HIT_LOCATION_LEFT_LEG, armor) <= Random(1,2)){
+		damage = CLAMP(force - getArmorClass(HIT_LOCATION_LEFT_LEG, armor) * 10, 0, 300);
+		cr.ParamBase[ CR_LEFT_LEG_DAMAGE ] += damage;
+	}
+	
+	if(cr.IsFree())
+			cr.Action( ACTION_DAMAGE_FORCE, attackFront ? 0 : 1, null );
+	Notify(cr, cr, "%trgt был ранен взрывом" );
+}
+
+
+void DropWeapon( Critter& cr ){
+    Item@ realWeaponTarget = _CritGetItemHand( cr );
+	Map@ map = cr.GetMap();
+    if( valid( realWeaponTarget ) && cr.Param[MODE_NO_DROP] == 0 )
+    {
+        if( realWeaponTarget.IsStackable() )
+        {
+            Item@ dropped = map.AddItem( cr.HexX, cr.HexY, realWeaponTarget.GetProtoId(), 1 );
+            if( realWeaponTarget.GetCount() > 1 )
+                realWeaponTarget.SetCount(realWeaponTarget.GetCount() - 1);
+            else
+                DeleteItem( realWeaponTarget );
+    
+            if( !cr.IsPlayer() )
+            {
+                NpcPlane@ plane = CreatePlane();
+                NpcPlane@[] crPlanes( 0 );
+    
+                if( cr.GetPlanes( crPlanes ) > 0 )
+                    plane.Priority = crPlanes[ 0 ].Priority + 1;
+                else
+                    plane.Priority = 70;
+    
+                plane.Type = AI_PLANE_PICK;
+                plane.Pick_HexX = dropped.HexX;
+                plane.Pick_HexY = dropped.HexY;
+                plane.Pick_Pid = dropped.GetProtoId();
+                plane.Pick_UseItemId = 0;
+                plane.Pick_ToOpen = false;
+                plane.Run = true;
+                cr.AddPlane( plane );
+            }
+        }
+        else
+        {
+			uint16 toHx = cr.HexX + Random( -3, 3 );
+			uint16 toHy = cr.HexY + Random( -3, 3 );
+			uint dist = GetDistantion(cr.HexX, cr.HexY, toHx, toHy);
+			map.GetHexCoord(cr.HexX, cr.HexY, toHx, toHy, 0.0f, dist); 
+            MoveItem( realWeaponTarget, 0, map, toHx, toHy );
+			map.RunFlyEffect( realWeaponTarget.GetProtoId(), null, null, cr.HexX, cr.HexY, toHx, toHy );
+			if(realWeaponTarget.GetProtoId() == PID_FRAG_GRENADE){
+				realWeaponTarget.EventUse(cr, null, null, null);
+			}
+            if( !cr.IsPlayer() )
+            {
+                NpcPlane@ plane = CreatePlane();
+    
+                NpcPlane@[] crPlanes( 0 );
+    
+                if( cr.GetPlanes( crPlanes ) > 0 )
+                    plane.Priority = crPlanes[ 0 ].Priority + 1;
+                else
+                    plane.Priority = 70;
+    
+                plane.Type = AI_PLANE_PICK;
+                plane.Pick_HexX = realWeaponTarget.HexX;
+                plane.Pick_HexY = realWeaponTarget.HexY;
+                plane.Pick_Pid = realWeaponTarget.GetProtoId();
+                plane.Pick_UseItemId = 0;
+                plane.Pick_ToOpen = false;
+                plane.Run = true;
+                cr.AddPlane( plane );
+            }
+        }
+		Notify(cr, cr, "Оружие %trgt отправляется в полет");
+    }
+}
+
+void InjureCritterThrowing(Critter& target, Critter& attacker, ProtoItem& weapon, Item& realItem){
+	Notify(attacker, target, "%atcr бросает что-то в %trgt");
+	if( weapon.Weapon_Type == WEAPON_TYPE_PENETRATION || weapon.Weapon_Type == WEAPON_TYPE_BLADE){
+		switch( Random(0,1) )
+		{
+			case 0:
+			InjureCritterBlade( target, attacker, weapon, Random(HIT_LOCATION_HEAD, HIT_LOCATION_LEFT_LEG) );
+			break;
+			case 1:
+			InjureCritterThrust( target, attacker, weapon, Random(HIT_LOCATION_HEAD, HIT_LOCATION_LEFT_LEG) );
+			break;
+		}
+	}else{
+		InjureCritterBlunt( target, attacker, weapon, Random(HIT_LOCATION_HEAD, HIT_LOCATION_LEFT_LEG) );
+	}
+	
+}
+
+string getStrHitLocation(uint aim){
+	switch( aim )
+	{
+	case HIT_LOCATION_NONE:
+	case HIT_LOCATION_UNCALLED:
+	case HIT_LOCATION_TORSO:
+	case HIT_LOCATION_GROIN:
+		return "торс";
+	case HIT_LOCATION_EYES:
+	case HIT_LOCATION_HEAD:
+		return "голову";
+	case HIT_LOCATION_LEFT_ARM:
+		return "левую руку";
+	case HIT_LOCATION_RIGHT_ARM:
+		return "правую руку";
+	case HIT_LOCATION_RIGHT_LEG:
+		return "правую ногу";
+	case HIT_LOCATION_LEFT_LEG:
+		return "левую ногу";
+	default:
+		return "хер знает куда";
+	}
+	return "хуй знает куда";
+}
+void CommenceExplosion( Map@ map, uint16 tx, uint16 ty, ProtoItem& weapon )
+{
+    uint radius = weapon.Weapon_Force / 10;
+	uint weapPid = weapon.ProtoId;
+    if( weapPid == PID_MOLOTOV_COCKTAIL )
+        map.RunEffect( PID_EXPLODE_FIRE_BIG, tx, ty, 2 );
+    else if( weapPid == PID_FRAG_GRENADE || weapPid == PID_HOLY_HAND_GRENADE )
+        map.RunEffect( PID_EXPLODE_FIRE_SMALL, tx, ty, 2 );
+    else if( weapPid == PID_PULSE_GRENADE )
+        map.RunEffect( PID_EXPLODE_EMP, tx, ty, 2 );
+    else if( weapPid == PID_PLASMA_GRENADE )
+        map.RunEffect( PID_EXPLODE_PLASMA, tx, ty, 2 );
+    else if( weapPid == PID_EMP_ROCKET )
+        map.RunEffect( PID_EXPLODE_EMP, tx, ty, 1 );
+    else
+        map.RunEffect( PID_EXPLODE_FIRE_BIG, tx, ty, 2 );  // default case
+
+    if( weapPid == PID_MUSTARD_GAS_GRENADE || weapPid == PID_SMOKE_GRENADE )
+        return;
+	map.PlaySound( Random( 0, 1 ) == 0 ? "WHN1XXX1.ACM" : "WHN1XXX2.ACM" );
+    QuakeScreen( map );
+    Critter@[] critsHit;
+	Item@[] doors;
+	map.GetItemsByType( ITEM_TYPE_DOOR, doors);
+	map.GetItemsByType( ITEM_TYPE_CONTAINER, doors);
+	Item@ door;
+	for(uint i = 0; i < doors.length(); i++)
+	{	
+		@door = doors[i];
+		if(GetDistantion(door.HexX, door.HexY, tx, ty) <= radius && doors[i].LockerComplexity < 500){
+			door.LockerId = 0;
+            door.LockerComplexity = 0;
+			if( FLAG( door.LockerCondition, LOCKER_LOCKED ) )
+				UNSETFLAG( door.LockerCondition, LOCKER_LOCKED );
+			door.Update();
+			door.LockerOpen();
+		}
+	}
+	
+    map.GetCrittersHex( tx, ty, radius, FIND_LIFE_AND_KO, critsHit );
+	uint16 hX=0, hY=0;
+	
+	
+    for( uint i = 0; i < critsHit.length(); i++ ){
+		hX = critsHit[i].HexX; hY = critsHit[i].HexY;
+		map.GetHexCoord(tx,ty, hX, hY, 0.0f, 0);
+		if(hX == critsHit[i].HexX && hY == critsHit[i].HexY){
+			InjureCritterExplode( critsHit[i], weapon, tx, ty );
+		}
+	}
+}
+
+int getArmorClass(uint aim, ProtoItem& armor){
+	uint armorClass = 0;
+	switch( aim )
+    {
+    case HIT_LOCATION_NONE:
+    case HIT_LOCATION_UNCALLED:
+	case HIT_LOCATION_GROIN:
+    case HIT_LOCATION_TORSO:
+        armorClass = armor.Armor_Class_Torso;
+		break;
+    case HIT_LOCATION_EYES:
+    case HIT_LOCATION_HEAD:
+        armorClass = armor.Armor_Class_Head;
+		break; 
+	case HIT_LOCATION_LEFT_ARM:
+    case HIT_LOCATION_RIGHT_ARM:
+        armorClass = armor.Armor_Class_Hands;
+		break;
+	case HIT_LOCATION_RIGHT_LEG:
+    case HIT_LOCATION_LEFT_LEG:
+		armorClass = armor.Armor_Class_Legs;
+		break;    
+	default:
+        break;
+    }
+	
+	return armorClass;
+}

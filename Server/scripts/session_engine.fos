@@ -1,0 +1,849 @@
+//Session engine module
+
+#include "_macros.fos"
+#include "roles.fos"
+#include "_colors.fos"
+
+#define PREPARATION_TIME ( 180 );
+#define TRAIN_ENTIRE_ID  ( 100 )
+#define RAILS_START_ID   ( 101 )
+#define RAILS_END_ID     ( 102 )
+
+
+#define TRAIN_ENTIRE_ID  ( 100 )
+
+#define TRAIN_MAP_PID    ( MAP_MAIN_CENTER )
+//#define TRAIN_MAP_PID    ( MAP_BLANK )
+
+import string getTargetItemName(uint pid) from "traitors";
+import void notifyTraitor(Critter@ cr) from "traitors";
+import void globalMessage(string@ message) from "rp_utils";
+import void unsafe_get_names( Critter& player, int param0, int param1, int param2, string@, int[] @ param4 ) from "rp_names";
+import void AddTrainBlockers(Map@ map, Item@ train) from "item";
+
+void createRelations(Critter@[] players)
+{
+
+	Critter@ player;
+	for(uint i = 0; i < players.length(); i++)
+	{
+		@player = players[i];
+		
+		if( player.Param[CR_BEST_FRIEND] == 0)
+		{
+			selectFriend(player, players);
+		}
+		
+		if( player.Param[CR_LOVE] == 0)
+		{
+			selectLove(player, players);
+		}
+		
+		if( player.Param[CR_ENEMY] == 0)
+		{
+			selectEnemy(player, players);
+		}
+	}
+
+}
+
+void selectFriend(Critter@ player, Critter@[] candidates)
+{
+	uint i = 0;
+	bool isSelected = false;
+	while(!isSelected && i < candidates.length())
+	{
+		if(Random(0, 4) == 0 && player.Id != candidates[i].Id && player.Param[CR_ENEMY] != candidates[i].Id)
+		{
+			player.ParamBase[ CR_BEST_FRIEND ] = candidates[i].Id;
+			candidates[i].ParamBase[ CR_BEST_FRIEND ] = player.Id;
+			
+			isSelected = true;
+		}
+		
+		i++;
+	}
+}
+
+void selectEnemy(Critter@ player, Critter@[] candidates)
+{
+	uint i = 0;
+	bool isSelected = false;
+	
+	while(!isSelected && i < candidates.length())
+	{
+
+		if(Random(0, 4) == 0 && player.Id != candidates[i].Id && player.Param[CR_BEST_FRIEND] != candidates[i].Id)
+		{
+			player.ParamBase[ CR_ENEMY ] = candidates[i].Id;
+			candidates[i].ParamBase[ CR_ENEMY ] = player.Id;
+
+			isSelected = true;
+		}
+		
+		i++;
+	}
+}
+
+void selectLove(Critter@ player, Critter@[] candidates)
+{
+	uint i = 0;
+	bool isSelected = false;
+	while(!isSelected && i < candidates.length())
+	{
+		if(Random(0, 4) == 0 && player.Id != candidates[i].Id && candidates[i].Param[ST_GENDER] != player.Param[ST_GENDER]) 
+		{
+			player.ParamBase[ CR_LOVE ] = candidates[i].Id;
+			isSelected = true;
+		}
+		
+		i++;
+	}
+}
+
+void updateReadyPlayers()
+{
+	Critter@[] players = getAllPlayers();
+	__ReadyPlayers = "";
+	RolesEngine roles;
+	
+	for(uint i = 0; i < players.length; i++)
+	{
+		if(FLAG(players[i].Flags, CRITTER_DISCONNECT)){
+			continue;
+		}
+	
+		__ReadyPlayers += "\n";
+		__ReadyPlayers += GetPlayerName(players[i].Id);
+		
+		if(players[i].Param[ROLE_PRIORITY_1] > 0 ){
+			if(players[i].Param[ROLE_PRIORITY_1] != ROLE_THUG){
+				__ReadyPlayers += " - " + roles.getRoleNameById(players[i].Param[ROLE_PRIORITY_1]);
+			}else{
+				__ReadyPlayers += " - " + roles.getRoleNameById(ROLE_PEASANT);
+			}
+		}
+		
+		__ReadyPlayers += players[i].Param[CR_IS_READY] > 0 ? ". |" + COLOR_RED + "  Готов" : ".";
+		__ReadyPlayers += "|" + COLOR_TEXT + " ";
+	}
+	
+	for(uint i = 0; i < players.length; i++)
+	{
+		players[i].RunClientScript("client_main@updateReadyPlayers", 0, 0, 0, __ReadyPlayers, null);
+	}
+}
+
+void unsafe_getCitizens(Critter& player, int id, int param1, int param2, string@ hardId, int[]@ param4){
+	string@ citizens = "";
+	RolesEngine roles;
+	
+	Critter@[] critters = getPlayersInGame();
+	
+	for(uint i = 0; i < critters.length(); i++)
+	{
+		citizens += GetPlayerName(critters[i].Id ) + " - ";
+		
+		if(critters[i].Param[CR_CURRENT_ROLE] == ROLE_THUG)
+		{
+			citizens += roles.getRoleNameById(ROLE_PEASANT);
+		}
+		else
+		{
+			citizens += roles.getRoleNameById(critters[i].Param[CR_CURRENT_ROLE]);
+		}
+		
+		
+		if(player.Id != critters[i].Id){
+		
+			if( player.Param[CR_BEST_FRIEND] == int( critters[i].Id ) )
+			{
+				citizens += "|" + COLOR_DBLUE + "  Это твой лучший друг.|" + COLOR_TEXT + " .";
+			}
+			
+			if( player.Param[CR_LOVE] == int( critters[i].Id ) )
+			{
+				citizens += "|" + COLOR_PINK + "  Ты влюблен в этого человека.|" + COLOR_TEXT + " .";
+			}
+			
+			if( player.Param[CR_ENEMY] == int( critters[i].Id ) )
+			{
+				citizens += "|" + COLOR_DRED + "  Это твой заклятый враг.|" + COLOR_TEXT + " .";
+			}
+			
+			if( player.Param[CR_CURRENT_ROLE] == ROLE_THUG && critters[i].Param[CR_CURRENT_ROLE] == ROLE_THUG  )
+			{
+				citizens += "|" + COLOR_DGREEN + "  Это твой собрат по ремеслу.|" + COLOR_TEXT + " .";
+			}
+		}		
+		
+		citizens += "\n";
+	}
+	
+	player.RunClientScript("client_main@updateCitizens", 0, 0, 0, citizens, null);
+}
+
+Critter@[] getPlayersInGame()
+{
+	Critter@[] players = getAllPlayers();
+	Critter@[] result;
+	
+	for(uint i = 0; i < players.length(); i++)
+	{
+		if(players[i].Param[CR_IN_GAME] > 0)
+		{
+			result.insertLast(players[i]);
+		}
+	}
+	
+	return result;
+}
+
+void unsafe_setReady(Critter& player, int id, int param1, int param2, string@ hardId, int[]@ param4){
+	if(
+		player.ParamBase[ROLE_PRIORITY_1] == 0 ||
+		player.ParamBase[ROLE_PRIORITY_2] == 0 ||
+		player.ParamBase[ROLE_PRIORITY_3] == 0 
+	){
+		player.Say(SAY_NETMSG, "Сначала нужно выбрать приоритеты." );
+		return;
+	}
+
+	player.ParamBase[CR_IS_READY] = player.Param[CR_IS_READY] == 1 ? 0 : 1;
+	player.Say(SAY_NETMSG, player.Param[CR_IS_READY] == 1 ? "Вы готовы." : "Вы не готовы.");
+	updateReadyPlayers();
+}
+
+void unsafe_setPriority(Critter& player, int id, int param1, int param2, string@ hardId, int[]@ param4){
+	player.ParamBase[ROLE_PRIORITY_1] = param4[0];
+	player.ParamBase[ROLE_PRIORITY_2] = param4[1];
+	player.ParamBase[ROLE_PRIORITY_3] = param4[2];
+	
+	player.Say(SAY_NETMSG, "Принято.");
+	updateReadyPlayers();
+}
+
+void selectTraitors(Critter@[] players){
+
+	uint maxTraitors = CLAMP( players.length() / 3, 1, 10);
+	Critter@ cr;
+	Critter@[] possibleTraitors;
+	Critter@[] traitors;
+	int[] POSSIBLE_TARGET_ITEM_PIDS = {PID_223_SAWED_OFF, PID_BRIEFCASE, PID_THOMMY_GUN};
+	
+	Log("Starting");
+	for(uint i = 0; i < players.length(); i++){
+		@cr = players[i];
+		
+		if(cr.Param[CR_CAN_BE_SPECIALROLE] > 0){
+			possibleTraitors.insertLast(cr);
+		}
+		
+	}
+	if(possibleTraitors.length() == 0){
+		Log("No possible traitors found");
+		return;
+	}
+	
+
+	Critter@ traitor;
+	for(uint i = 0; i < maxTraitors; i ++){
+		@traitor = possibleTraitors[Random(0, possibleTraitors.length() - 1)];
+		
+		traitors.insertLast(traitor);
+		possibleTraitors.removeAt(possibleTraitors.findByRef(traitor));		
+	}
+	
+	Log("Traitors founded " + traitors.length());
+
+	uint targetType = 0;
+	string targetName = "";
+	int targetId = 0;
+	int targetItemPid = 0;
+	int isProtect = 0;
+	for(uint i = 0; i < traitors.length(); i++){
+		@traitor = traitors[i];
+		targetType = Random(TARGET_TYPE_KILL, TARGET_TYPE_PROTECT);
+		
+		if(targetType == TARGET_TYPE_KILL){
+			targetId = getRandomTargetPlayer(traitor, players).Id;
+			traitor.ParamBase[CR_TARGET_CHAR_ID] = targetId;
+			targetName = GetPlayerName(targetId);
+		}else if(targetType == TARGET_TYPE_STOLE){
+			targetItemPid = POSSIBLE_TARGET_ITEM_PIDS[Random(0, POSSIBLE_TARGET_ITEM_PIDS.length() - 1)];
+			traitor.ParamBase[CR_TARGET_ITEM_PID] = targetItemPid;
+			
+		}else if(targetType == TARGET_TYPE_PROTECT){
+			targetId = getRandomTargetPlayer(traitor, players).Id;
+			traitor.ParamBase[CR_TARGET_PROTECT_CHAR_ID] = targetId;
+			targetName = GetPlayerName(targetId);
+			isProtect = 1;
+		}
+		
+		traitor.ParamBase[CR_IS_TRAITOR] = 1;
+	}
+
+}
+
+Critter@ getRandomTargetPlayer(Critter@ cr, Critter@[] crs){
+	bool isSelected = false;
+	Critter@ target;
+	
+	if(crs.length() == 1){
+		return cr;
+	}
+	
+	uint counter = 0;
+	while(!isSelected && counter < 100){
+		@target = crs[Random(0, crs.length() - 1)];
+		
+		if(target.Id != cr.Id && target.Param[CR_BEST_FRIEND] != cr.Param[CR_BEST_FRIEND]){
+			isSelected = true;
+		}
+		
+		counter++;
+	}
+	
+	return target;	
+}
+
+void arriveTrain(){
+	globalMessage("Поезд прибыл на станцию.");
+	__TrainArrived = true;
+	Map@ map = GetMapByPid( TRAIN_MAP_PID, 0 );
+	
+	uint16 hexX = 0, hexY = 0;
+	map.GetEntireCoords( TRAIN_ENTIRE_ID, 0, hexX, hexY);
+	
+	Item@ train = map.AddItem(hexX, hexY, PID_TRAIN, 1);
+	killEveryoneOnRails();
+	AddTrainBlockers(map, train);
+	
+	CreateTimeEvent(__FullSecond + REAL_MINUTE( 3 ), "session_engine@e_LeaveTrain", false);
+	globalMessage("Поезд отходит через 3 минуты.");
+}
+
+void killEveryoneOnRails(){
+	Critter@[] loosers;
+	Map@ map = GetMapByPid( TRAIN_MAP_PID, 0 );
+
+	uint16 startHexX = 0, startHexY = 0, endHexX = 0, endHexY = 0;
+	
+	for(uint i = 0; i <= 2; i++){
+		map.GetEntireCoords( RAILS_START_ID, i, startHexX, startHexY);
+		map.GetEntireCoords( RAILS_END_ID, 2 - i, endHexX, endHexY);
+		uint16 dist = GetDistantion(startHexX, startHexY, endHexX, endHexY);
+		uint dir = GetDirection(startHexX, startHexY, endHexX, endHexY);
+
+		for(uint j = 0; j < dist; j++){
+			dir = GetDirection(startHexX, startHexY, endHexX, endHexY);
+			map.MoveHexByDir(startHexX, startHexY, dir, 1);
+			Critter@ cr = map.GetCritter(startHexX, startHexY);
+			if(valid(cr) && cr.IsLife()){
+				loosers.insertLast(cr);
+			}
+		}
+	}
+	
+	for(uint i = 0; i < loosers.length(); i++){
+		loosers[i].ToDead(ANIM2_DEAD_EXPLODE, null);
+	}	
+}
+uint e_LeaveTrain(uint[]@ values){
+	trainLeave();
+	return 0;
+}
+
+void trainLeave(){
+	Item@[] trains;
+	Map@ map = GetMapByPid( TRAIN_MAP_PID, 0 );
+
+	map.GetItems(PID_TRAIN, trains);
+	
+	Item@ train = trains[0];
+	Critter@[] leavers;
+	map.GetCrittersHex( train.HexX, train.HexY - 5, 10, FIND_LIFE_AND_KO | FIND_ONLY_PLAYERS, leavers); 
+
+	
+	for(uint i = 0; i < leavers.length(); i++){
+		leavers[i].ParamBase[CR_ESCAPED] = 1;
+		leavers[i].Say(SAY_NETMSG, "Вам удалось покинуть это гиблое место.");
+		leavers[i].TransitToMap(GetMapByPid(MAP_BLANK, 0).Id, 0);
+	}
+	
+	DeleteItem(train);	
+	killEveryoneOnRails();
+	CreateTimeEvent( __FullSecond + REAL_SECOND( 30 ), "e_RoundEnd", false);
+}
+
+void initiate(){
+	__GameState = GAME_STATE_NOT_STARTED;
+	__TrainArrived = false;
+	__TrainCalled = 0;
+	__CaravanArrived = false;
+	__CaravanBalance = 1000;
+	Log("Game State: " + __GameState);
+	globalMessage("Раунд начнется через 3 минуты.");
+	__TimeBeforeStart = PREPARATION_TIME;
+	updateReadyPlayers();
+	CreateTimeEvent( __FullSecond, "e_RoundStart", false);
+}
+
+void startRound(){
+	Critter@[] players = getAllPlayers();
+	array<Critter@> readyPlayers;
+	int playersCount = 0;
+	__CurrentGameId = Random(0, 10000);
+	RolesEngine rolesEngine;
+	bool hasSheriff = false;
+	bool hasCaravaner = false;
+
+	for(uint i = 0; i < players.length; i++)
+	{
+		if(players[i].Param[CR_IS_READY] > 0 && !FLAG(players[i].Flags, CRITTER_DISCONNECT) ){
+			playersCount++;
+			readyPlayers.insertLast(players[i]);
+			
+			if(players[i].Param[ROLE_PRIORITY_1] == ROLE_SHERIFF)
+				hasSheriff = true;
+				
+			if(players[i].Param[ROLE_PRIORITY_1] == ROLE_CARAVAN_OWNER)
+				hasCaravaner = true;
+
+			dropParameters(players[i]);
+		}		
+
+	}
+	
+	if(playersCount < 5 || !hasSheriff || !hasCaravaner){
+		globalMessage("Чтобы начать требуется 5 игроков, шериф и караванщик.");
+		//initiate();
+		//return;
+	}
+	
+		
+	Log("Regen location!");
+	Location@ gameLoc = GetLocationByPid(LOCATION_MAIN_GAME_LOCATION, 0);
+	gameLoc.Reload();
+	
+	globalMessage("Собралось: " + playersCount + " игроков");
+	calculateRoles(readyPlayers);
+	selectGameMode(readyPlayers);
+	createRelations(readyPlayers);
+	
+	if(__CurrentGameMode == GAME_MODE_TRAITOR){
+		selectTraitors(readyPlayers);
+	}
+	
+	for(uint i = 0; i < readyPlayers.length(); i++)
+	{
+		Critter@ player = readyPlayers[i];
+		
+		forgetNames(player);
+		destroyItems(player);
+		
+		player.ParamBase[CR_IS_READY] = 0;
+
+		sendCritterToPositionByRole(player);
+		applyRoleForCritter(player);
+		
+		readyPlayers[i].ParamBase[ CR_MAXBLOOD ] = 6000 + readyPlayers[i].Stat[ST_STRENGTH] * 200;
+		readyPlayers[i].ParamBase[ CR_BLOOD ] = readyPlayers[i].ParamBase[ CR_MAXBLOOD ];
+
+		readyPlayers[i].ParamBase[CR_CURRENT_SESSION_ID] = __CurrentGameId;
+		readyPlayers[i].ParamBase[CR_IN_GAME] = 1;
+		if(readyPlayers[i].Param[CR_IS_TRAITOR] != 0)
+		{
+			notifyTraitor(readyPlayers[i]);
+		}
+		Log(GetPlayerName(player.Id) + " начинает игру в роли: " + rolesEngine.getRoleNameById(player.Param[CR_CURRENT_ROLE]));
+	}
+	
+	__GameState = GAME_STATE_STARTED;
+	globalMessage("Игра началась!");
+}
+
+void forgetNames(Critter@ critter){
+	EraseAnyData(GetPlayerName(critter.Id) + "_names");
+	unsafe_get_names( critter, 0, 0, 0, null, null);
+}
+
+void selectGameMode(Critter@[] players){
+	
+	uint dice = Random(0, 100);
+	uint gamemode;
+	if(dice >= 100){
+		gamemode = GAME_MODE_DEFAULT;
+	}else{
+		gamemode = GAME_MODE_TRAITOR;
+	}
+	
+	__CurrentGameMode = gamemode;
+}
+
+void sendCritterToPositionByRole(Critter@ critter)
+{
+	RolesEngine rolesEngine = RolesEngine();
+	Role critterRole = rolesEngine.getRoleById(critter.Param[CR_CURRENT_ROLE]);
+	Map@ map = GetMapByPid(MAP_MAIN_CENTER, 0);
+	
+	critter.TransitToMap( map.Id, critter.Param[CR_CURRENT_ROLE] );
+	
+	critter.Say(SAY_NETMSG, "Ты: " + critterRole.name + "\n " + critterRole.description);
+}
+
+void applyRoleForCritter(Critter@ critter)
+{
+	RolesEngine rolesEngine = RolesEngine();
+
+	rolesEngine.applyRole(critter);
+}
+
+void calculateRoles(Critter@[] crs)
+{
+	array<Critter@> players = crs;
+	RolesEngine rolesEngine = RolesEngine();
+	Role[] roles = rolesEngine.getAllRoles();
+	dictionary takenRoles();
+	int count = 0;
+	//First Priority
+	for(uint i = 0; i < roles.length(); i++)
+	{
+		Role role = roles[i];
+		count = 0;
+		if(takenRoles.exists(role.name))
+			takenRoles.get(role.name, count);
+		
+		for(uint j = 0; j < players.length(); j++)
+		{
+			if(count >= role.maxCount){
+				break;
+			}
+			Critter@ critter = players[j];
+			if(critter.Param[ROLE_PRIORITY_1] == role.id){
+			
+				critter.ParamBase[CR_CURRENT_ROLE] = role.id;
+				players.removeAt(players.findByRef(critter));
+				count++;
+
+				takenRoles.set(role.name, count);
+			}
+		}
+	}
+	
+	//Second Priority
+	for(uint i = 0; i < roles.length(); i++)
+	{
+		Role role = roles[i];
+		count = 0;
+		if(takenRoles.exists(role.name))
+			takenRoles.get(role.name, count);
+
+		for(uint j = 0; j < players.length(); j++)
+		{
+			if(count >= role.maxCount){
+					break;
+			}
+			Critter@ critter = players[j];
+			if(critter.Param[ROLE_PRIORITY_2] == role.id){
+				critter.ParamBase[CR_CURRENT_ROLE] = role.id;
+				players.removeAt(players.findByRef(critter));
+				count++;
+				takenRoles.set(role.name, count);
+			}
+		}
+	}
+	
+	//Third Priority
+	for(uint i = 0; i < roles.length(); i++)
+	{
+		Role role = roles[i];
+		count = 0;
+		if(takenRoles.exists(role.name))
+			takenRoles.get(role.name, count);
+		
+		for(uint j = 0; j < players.length(); j++)
+		{
+			if(count >= role.maxCount){
+					break;
+			}
+			Critter@ critter = players[j];
+			if(critter.Param[ROLE_PRIORITY_3] == role.id){
+				critter.ParamBase[CR_CURRENT_ROLE] = role.id;
+				players.removeAt(players.findByRef(critter));
+				count++;
+				takenRoles.set(role.name, count);
+			}
+		}
+	}
+	
+	//Set Bum
+	if(players.length > 0)
+	{
+		for(uint i = 0; i < players.length(); i++)
+		{
+			Critter@ critter = players[i];
+			critter.ParamBase[CR_CURRENT_ROLE] = ROLE_BUM;
+		}
+	}
+}
+
+void sendCritterToBlankAndDromParams(Critter@ critter)
+{
+	Map@ blankMap = GetMapByPid(MAP_BLANK, 0);
+	critter.TransitToMap(blankMap.Id, 0);
+	critter.ParamBase[CR_IN_GAME] = 0;
+	dropParameters(critter);
+	destroyItems(critter);
+}
+
+uint e_RoundEnd(uint[]@ values)
+{
+	endRound();
+	return 0;
+}
+
+uint e_RoundStart(uint[]@ values)
+{
+	refreshCountDownForPlayers();
+
+	if(__TimeBeforeStart <= 0)
+	{
+		startRound();
+		return 0;
+	}
+	__TimeBeforeStart--;		
+	
+	return REAL_SECOND( 1 );
+}
+
+void refreshCountDownForPlayers(){
+	Critter@[] crs;
+	GetAllPlayers(crs);
+	
+	for(uint i = 0; i < crs.length; i++){
+		crs[i].RunClientScript("client_main@__setCountDownTime", __TimeBeforeStart, 0, 0, null, null);
+	}
+}
+
+string getGameResults(Critter@[] players)
+{
+	string@ result = "";
+	if(__CurrentGameMode == GAME_MODE_DEFAULT){
+		result += "Это были ТИХИЕ ВРЕМЕНА";
+	}else if(__CurrentGameMode == GAME_MODE_TRAITOR){
+		result += getTraitorResults(players);
+	}
+	
+	return result;
+}
+
+string getTraitorResults(Critter@[] players){
+	string@	result = "|" + COLOR_TEXT + " Сегодня среди нас были" + "|" + COLOR_RED + "  ПРЕДАТЕЛИ" + "|" + COLOR_TEXT + " \n";
+	result += "Их целями были:";
+	
+	Critter@[] traitors = getTraitors(players);
+	Critter@ traitor;
+	Critter@ target;
+	Item@ targetItem;
+	for(uint i = 0; i < traitors.length(); i++){
+		@traitor = traitors[i];
+		result += "\n |" + COLOR_TEXT + " "  + GetPlayerName(traitor.Id) + ":";
+		
+		if(traitor.Param[CR_TARGET_CHAR_ID] > 0){
+			result += "\n	Нужно было убить человека по имени " + GetPlayerName(traitor.Param[CR_TARGET_CHAR_ID]) + ", и сбежать на поезде.";
+			@target = GetCritter(traitor.Param[CR_TARGET_CHAR_ID]);
+			
+			if(valid(target) && ( !target.IsDead() || traitor.Param[CR_ESCAPED] == 0 || traitor.Param[ST_HANDCUFFS] != 0)){
+				result += "\n	" + "|" + COLOR_RED + " НЕУДАЧА";
+			}else{
+				result += "\n	УСПЕХ";
+			}
+		}else if(traitor.Param[CR_TARGET_ITEM_PID] > 0){
+			result += "\n	Нужно было украсть " +  getTargetItemName( traitor.Param[CR_TARGET_ITEM_PID] ) +" и покинуть окрестности на поезде.";
+			@targetItem = traitor.GetItem(traitor.Param[CR_TARGET_ITEM_PID], -1);
+			
+			if(valid(targetItem) && traitor.Param[CR_ESCAPED] > 0 && traitor.Param[ST_HANDCUFFS] == 0){
+				result += "\n	УСПЕХ";
+			}else{
+				result += "\n	" + "|" + COLOR_RED + " НЕУДАЧА";
+			}
+			
+		}else if(traitor.Param[CR_TARGET_PROTECT_CHAR_ID] > 0){
+			result += "\n	Человек по имени " + GetPlayerName(traitor.Param[CR_TARGET_PROTECT_CHAR_ID]) + " не должен был погибнуть сегодня, его нужно было вывезти за пределы города живым любой ценой.";
+			@target = GetCritter(traitor.Param[CR_TARGET_PROTECT_CHAR_ID]);
+			
+			if(valid(target) && !target.IsDead() && target.Param[CR_ESCAPED] > 0 ){
+				result += "\n	УСПЕХ";
+			}else{
+				result += "\n	" + "|" + COLOR_RED + " НЕУДАЧА";
+			}
+		}
+		result += "\n";
+	}
+	
+	return result;	
+}
+
+Critter@[] getTraitors(Critter@[] players){
+	Critter@[] traitors;
+	Critter@ cr;
+	for(uint i = 0; i < players.length(); i++){
+		@cr = players[i];
+		
+		if(cr.Param[CR_IS_TRAITOR] > 0){
+			traitors.insertLast(cr);
+		}
+		
+	}
+	
+	return traitors;	
+}
+
+void endRound(){
+	Log("Round Ended!");
+	Critter@[] players;
+	GetAllPlayers(players);
+	__CurrentGameId = 0;
+
+	globalMessage("Раунд подошел к концу. \n" + getGameResults(players));
+
+	for(uint i = 0; i < players.length; i++){
+		sendCritterToBlankAndDromParams(players[i]);
+	}
+
+	__GameState = GAME_STATE_NOT_STARTED;
+	initiate();
+}
+
+Critter@[] getAllPlayers(){
+	Critter@[] players;
+	GetAllPlayers(players);
+	return players;
+}
+
+Role getCritterRole(Critter@ cr)
+{
+	RolesEngine rolesEngine = RolesEngine();
+	return rolesEngine.getRoleById(cr.Param[CR_CURRENT_ROLE]);
+}
+
+void destroyItems(Critter@ critter)
+{
+	Item@[] items;
+	critter.GetItems( -1, items );
+	Map@ blankMap = GetMapByPid(MAP_BLANK, 0);
+	
+	MoveItems( items, blankMap, 100, 100 );
+	DeleteItems( items );
+}
+
+void dropParameters(Critter& critter){
+	for(int i = STAT_BEGIN; i <= ST_PLAYER_KARMA; i++ ){
+		if(i == ST_AGE)
+			continue;
+			
+		if(i == ST_GENDER)
+			continue;
+			
+		if(i == ST_LOCOMOTION_TYPE)
+			continue;
+			
+		if(i == ST_DAMAGE_TYPE)
+			continue;
+			
+		if(i == ST_CURRENT_HP)
+			continue;
+	
+		if(i == ST_CURRENT_AP)
+			continue; 
+			
+		if(i == ST_ACTION_POINTS)
+			continue; 
+	
+		critter.ParamBase[i] = 0;
+	}
+
+	for(uint i = SKILL_BEGIN; i <= SKILL_END; i++ ){
+		critter.ParamBase[i] = 15;
+	}
+	
+	for(uint i = KILL_BEGIN; i <= KILL_END; i++ ){
+		critter.ParamBase[i] = 0;
+	}
+	
+	for(uint i = PERK_BEGIN; i <= PERK_END; i++ ){
+		critter.ParamBase[i] = 0;
+	}
+	
+	for(uint i = ADDICTION_BEGIN; i <= ADDICTION_END; i++ ){
+		critter.ParamBase[i] = 0;
+	}
+	
+	for(uint i = KARMA_BEGIN; i <= KARMA_END; i++ ){
+		critter.ParamBase[i] = 0;
+	}
+	
+	for(uint i = DAMAGE_BEGIN; i <= DAMAGE_END; i++ ){
+		critter.ParamBase[i] = 0;
+	}
+	
+	for(uint i = MODE_BEGIN; i <= MODE_END; i++ ){
+		critter.ParamBase[i] = 0;
+	}
+	
+	for(uint i = TRAIT_BEGIN; i <= TRAIT_END; i++ ){
+		critter.ParamBase[i] = 0;
+	}
+	
+	for(uint i = REPUTATION_BEGIN; i <= REPUTATION_END; i++ ){
+		critter.ParamBase[i] = 0;
+	}
+	
+	for(uint i = CR_LEFT_ARM_DAMAGE; i <= LAST_ATTACKER_ID; i++ ){
+		critter.ParamBase[i] = 0;
+	}
+	
+	critter.ParamBase[ST_WALK_TIME] = 400;
+	critter.ParamBase[ST_RUN_TIME] = 200;
+	critter.ParamBase[CR_IN_ACTION] = 0;
+	
+	critter.ParamBase[ST_HANDCUFFS] = 0;
+	critter.ParamBase[CR_IS_TRAITOR] = 0;
+	critter.ParamBase[CR_TARGET_CHAR_ID] = 0;
+	critter.ParamBase[CR_TARGET_ITEM_PID] = 0;
+	critter.ParamBase[CR_TARGET_PROTECT_CHAR_ID] = 0;
+	critter.ParamBase[CR_ESCAPED] = 0;
+	critter.ParamBase[CR_FACE_HIDDEN] = 0;
+	
+	critter.ParamBase[CR_PROFESSION] = 0;
+	critter.ParamBase[CR_BANDIT_PROFESSION] = 0;
+	critter.ParamBase[CR_BEST_FRIEND] = 0;
+	critter.ParamBase[CR_ENEMY] = 0;
+	critter.ParamBase[CR_LOVE] = 0;
+
+
+	for( uint i = TIMEOUT_BEGIN; i <= TIMEOUT_END; i++ )
+        if( i != TO_BATTLE )
+            critter.TimeoutBase[ i ] = __FullSecond;
+	
+    critter.EraseTimeEvents( 0 );
+    critter.StatBase[ ST_CURRENT_HP ] = critter.Stat[ ST_MAX_LIFE ];
+    critter.StatBase[ ST_CURRENT_AP ] = critter.Stat[ ST_ACTION_POINTS ] * 100;
+	critter.ParamBase[ CR_MAXBLOOD ] = 6000 + critter.Stat[ST_STRENGTH] * 200;
+	critter.ParamBase[ CR_BLEEDING ] = 0;
+	critter.ParamBase[ CR_HEARTBEAT ] = 0;
+	critter.ParamBase[ CR_BLOOD ] = critter.ParamBase[ CR_MAXBLOOD ];
+	critter.ParamBase[ CR_BREAKTIME ] = 1200;
+
+	if( critter.GetTimeEvents( CTE_HUNGERTHIRST, null, null, null ) == 0){
+		critter.AddTimeEvent("health@cte_HungerThirst", 1, CTE_HUNGERTHIRST);
+	}
+	
+	critter.ParamBase[CR_HUNGER] = 100;
+	critter.ParamBase[CR_THIRST] = 100;
+	
+	if(critter.IsDead()){
+		critter.ToLife();
+	}
+}

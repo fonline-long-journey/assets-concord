@@ -1,0 +1,237 @@
+#include "_macros.fos"
+#include "_colors.fos"
+#include "rp_utils.fos"
+
+void _CuffsInit( Item& item, bool FirstTime )
+{
+    if( item.Val1 == 0 ){
+        item.Val1 = Random( 100, 100000 );
+		//item.SetLexems("Наручники №" + item.Val1);
+	}
+			
+	item.SetEvent(ITEM_EVENT_USE, "_UseHandcuffs");
+}
+
+void _InitRope( Item& item, bool firstTime )
+{
+	item.SetEvent(ITEM_EVENT_USE, "_UseRope");
+}
+
+void _InitHandcuffsKey( Item& item, bool firstTime )
+{
+	item.SetEvent(ITEM_EVENT_USE, "_UseHandcuffsKey");
+}
+
+bool tryBreakFree(Critter@ cr){
+
+	if(cr.Param[ST_HANDCUFFS] > 0){
+		uint baseTime = cr.Param[ST_HANDCUFFS] == 1 ? 120 : 240;
+		uint time = baseTime;
+		string@ func = "handcuffs@cte_BreakFree";
+		
+		if(processAction(cr, null, null, time, 0, func)){
+			cr.Say(SAY_EMOTE, "Пытается освободиться");
+		}
+		return true;
+	}
+	return false;
+}
+
+uint cte_BreakFree( Critter& cr, int identifier, uint& rate){
+	cr.Say(SAY_EMOTE, "Освобождается");
+	Notify(cr, cr, "%trgt удалось освободиться.");
+	
+	cr.ParamBase[ST_HANDCUFFS] = 0;
+	endAction(cr, cr, 0, false, 0);
+	return 0;
+}
+
+bool untie(Critter@ cr, Critter@ onCritter, uint pid){
+	ProtoItem@ proto = GetProtoItem(pid);
+	Item@ item = _CritGetItemHand(cr);
+	
+	if(proto.Weapon_Type != WEAPON_TYPE_BLADE || !valid(onCritter)){
+		return false;
+	}
+	
+	if(onCritter.Param[ST_HANDCUFFS] == 0){
+		cr.Say(SAY_NETMSG, "Цель не связана.");
+		return false;
+	}
+	
+	if(onCritter.Param[ST_HANDCUFFS] > 1){
+		cr.Say(SAY_NETMSG, "Наручники ножом не перережешь.");
+		return false;
+	}
+	
+	uint time = CLAMP( REAL_SECOND(80 - proto.Weapon_Sharpness), 10, 80);
+	string@ func = "handcuffs@cte_cutRope";
+	
+	if(processAction(cr, onCritter, item, time, onCritter.Id, func)){
+		cr.Say(SAY_EMOTE, "Режет веревку");
+	}
+
+	return true;
+}
+
+uint cte_cutRope( Critter& cr, int identifier, uint& rate){
+	Critter@ target = GetCritter(rate);
+	target.ParamBase[ST_HANDCUFFS] = 0;
+	target.ParamBase[MODE_NO_UNARMED] = 0;
+	
+	target.Say(SAY_NETMSG, "Вы свободны.");
+
+	endAction(cr, target, 0, false);
+	return 0;
+}
+
+
+bool _UseHandcuffsKey(Item& item, Critter& crit, Critter@ onCritter, Item@ onItem, Scenery@ onScenery){
+	if(valid(onCritter) && onCritter.Param[ST_HANDCUFFS] == item.Val1){
+		onCritter.ParamBase[ST_HANDCUFFS] = 0;
+		onCritter.ParamBase[MODE_NO_UNARMED] = 0;
+
+		Item@ handCuffs = crit.AddItem(PID_HANDCUFFS, 1);
+
+		crit.Say(SAY_EMOTE, "Снимает наручники");
+		DeleteItem(item);
+		item.Update();
+	}
+	
+	return true;
+}
+
+bool _UseRope(Item& item, Critter& crit, Critter@ onCritter, Item@ onItem, Scenery@ onScenery){
+	if(valid(onItem) || valid(onScenery)){
+		return false;
+	}
+
+	uint time = CLAMP( REAL_SECOND(16 - crit.Stat[ST_AGILITY]), 1, 16);
+	string@ func = valid(onCritter) ? "handcuffs@cte_HandCuff_Someone" : "handcuffs@cte_HandCuffSelf";
+	
+	if(valid(onCritter) && !onCritter.IsKnockout()){
+		ToAsk(item, crit, onCritter);
+		return true;
+	}
+	
+	if(processAction(crit, onCritter, item, time, item.Id, func)){
+		crit.Say(SAY_EMOTE, "Связывает");
+	}
+	
+	return true;
+}
+
+bool _UseHandcuffs(Item& item, Critter& crit, Critter@ onCritter, Item@ onItem, Scenery@ onScenery){
+	if(valid(onItem) || valid(onScenery)){
+		return false;
+	}
+	
+	bool isHandcuffs = item.GetProtoId() == PID_HANDCUFFS ? true : false;
+
+	uint time = CLAMP( REAL_SECOND(8 - crit.Stat[ST_AGILITY]), 1, 10);
+	string@ func = valid(onCritter) ? "handcuffs@cte_HandCuff_Someone" : "handcuffs@cte_HandCuffSelf";
+	
+	if(valid(onCritter) && !onCritter.IsKnockout()){
+		ToAsk(item, crit, onCritter);
+		return true;
+	}
+	
+	if(processAction(crit, onCritter, item, time, item.Id, func)){
+		crit.Say(SAY_EMOTE, isHandcuffs ? "Надевает наручники" : "Связывает");
+	}
+	
+	return true;
+}
+
+uint cte_HandCuffSelf( Critter& cr, int identifier, uint& rate){
+	Item@ handCuffs = _CritGetItemHand( cr );
+		
+	tiePerson(cr, cr, handCuffs);
+	
+	endAction(cr, null, 0, true);
+	return 0;
+}
+
+uint cte_HandCuff_Someone( Critter& cr, int identifier, uint& rate){
+	Critter@ target = GetCritter(rate);
+	Item@ handCuffs = _CritGetItemHand( cr );
+	
+	/*
+	if( !cr.IsKnockout() )
+	{
+		ToAsk(handCuffs, cr, target);
+		return 0;
+	}*/
+	
+	tiePerson(cr, target, handCuffs);
+
+	endAction(cr, target, 0, true);
+	return 0;
+}
+
+void ToAsk( Item& item, Critter@ cr, Critter@ onCritter )
+{
+    onCritter.ParamBase[ST_VAR0] = cr.Id;
+    onCritter.ParamBase[ST_VAR1] = item.Val1;
+    onCritter.ShowScreen( SCREEN_DIALOGBOX, 1, "AnswerMe" );
+    onCritter.Say( SAY_NETMSG, "Вас пытаются связать."  );
+	
+	onCritter.Say( SAY_DIALOGBOX_TEXT, "Вас хотят связать."  );
+    onCritter.Say( SAY_DIALOGBOX_BUTTON( 0 ), "Сдаться?" );
+}
+
+void tiePerson(Critter@ cr, Critter@ target, Item@ handCuffs)
+{
+	bool isCuffs = handCuffs.GetProtoId() == PID_HANDCUFFS;
+
+	target.ParamBase[ST_HANDCUFFS] = isCuffs ? handCuffs.Val1 : 1;
+	target.ParamBase[MODE_NO_UNARMED] = 1;
+	
+	if(cr.Id == target.Id){
+		cr.Say(SAY_NETMSG, "Вы связали себя...");
+	}else{
+		target.Say( SAY_NETMSG, "Вас связали." );
+		cr.Say(SAY_NETMSG, "Вы связали цель");
+	}
+	
+	if(target.Id != cr.Id){
+		Item@ firstItem = _CritGetItemHand( target );
+		if(valid(firstItem))
+		{
+			_CritMoveItem(target, firstItem, SLOT_INV);
+		}
+	}
+	
+	Item@ secondItem = _CritGetItemHandExt( target );
+	if(valid(secondItem))
+	{
+		_CritMoveItem(target, secondItem, SLOT_INV);
+	}
+	
+	if(isCuffs){
+		Item@ key = cr.AddItem(PID_CUFFS_KEY, 1);
+		key.Val1 = handCuffs.Val1;
+		key.SetLexems("Ключ от наручников №" + key.Val1);
+		key.Update();
+	}
+}
+
+
+void AnswerMe( Critter& cr, uint answerI, string& answerS )
+{
+	Critter@ opponent = GetCritter(cr.Param[ST_VAR0]);
+	Item@ handCuffs = _CritGetItemHand( opponent );
+	bool isHandcuffs = handCuffs.GetProtoId() == PID_HANDCUFFS ? true : false;
+
+	
+    if( answerI == 0 && GetDistantion(cr.HexX, cr.HexY, opponent.HexX, opponent.HexY) <= 1)
+    {	
+		if(processAction(opponent, cr, handCuffs, REAL_SECOND( 2 ), handCuffs.Id, "handcuffs@cte_HandCuff_Someone")){
+			opponent.Say(SAY_EMOTE, isHandcuffs ? "Надевает наручники" : "Связывает");
+			cr.ParamBase[ST_VAR0] = 0;
+			cr.ParamBase[ST_VAR1] = 0;
+		}
+		//tiePerson(opponent, cr, handCuffs);
+    }
+
+}

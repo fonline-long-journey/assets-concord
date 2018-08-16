@@ -1,0 +1,114 @@
+Application
+	Name        FOnlineServer
+	Version     476
+	OS          6.1.7601 (Service Pack 1)
+	Timestamp   2017.08.13 00:13:49
+
+Exception
+	Code      EXCEPTION_ACCESS_VIOLATION
+	Address   0x66FD1194
+	Flags     0x0
+	Info      Attempted to read to an 0x00000010
+
+Thread 'Main' (5548, current)
+	parameters, DllMainEx + 164
+	FOnlineServer, Script::LoadDynamicLibrary + 933, script.cpp (552)
+	FOnlineServer, BindFuncPragma::Call + 650, scriptpragmas.cpp (333)
+	FOnlineServer, ScriptPragmaCallback::CallPragma + 801, scriptpragmas.cpp (551)
+	FOnlineServer, Preprocessor::ParsePragma + 638, preprocessor.cpp (826)
+	FOnlineServer, Preprocessor::RecursivePreprocess + 2330, preprocessor.cpp (994)
+	FOnlineServer, Preprocessor::RecursivePreprocess + 2168, preprocessor.cpp (985)
+	FOnlineServer, Preprocessor::Preprocess + 832, preprocessor.cpp (1061)
+	FOnlineServer, Script::LoadScript + 2442, script.cpp (1462)
+	FOnlineServer, Script::ReloadScripts + 570, script.cpp (618)
+	FOnlineServer, FOServer::InitScriptSystem + 43055, serverscript.cpp (137)
+	FOnlineServer, FOServer::InitReal + 880, server.cpp (3480)
+	FOnlineServer, FOServer::Init + 22, server.cpp (3389)
+	FOnlineServer, GameLoopThread + 10, mainserver.cpp (691)
+	FOnlineServer, ThreadBeginExecution + 44, common.cpp (1546)
+	FOnlineServer, ptw32_threadStart + 119, ptw32_threadstart.c (225)
+	FOnlineServer, _callthreadstartex + 27, threadex.c (314)
+	FOnlineServer, _threadstartex + 100, threadex.c (292)
+	kernel32, BaseThreadInitThunk + 18
+	ntdll, RtlInitializeExceptionChain + 99
+	ntdll, RtlInitializeExceptionChain + 54
+
+Thread 'GUI' (6460)
+	ntdll, ZwWaitForMultipleObjects + 21
+	kernel32, WaitForMultipleObjectsEx + 142
+	USER32, PeekMessageW + 688
+	USER32, MsgWaitForMultipleObjects + 31
+	FOnlineServer, fl_wait + 665, fl_win32.cxx (399)
+	FOnlineServer, Fl::wait + 23, fl.cxx (454)
+	FOnlineServer, Fl::wait + 33, fl.cxx (598)
+	FOnlineServer, main + 1209, mainserver.cpp (210)
+	FOnlineServer, WinMain + 402, fl_call_main.c (115)
+	FOnlineServer, __tmainCRTStartup + 282, crt0.c (275)
+	kernel32, BaseThreadInitThunk + 18
+	ntdll, RtlInitializeExceptionChain + 99
+	ntdll, RtlInitializeExceptionChain + 54
+
+Thread 'GUIUpdate' (7040)
+	ntdll, NtDelayExecution + 21
+	KERNELBASE, Sleep + 15
+	FOnlineServer, Thread::Sleep + 13, common.cpp (1638)
+	FOnlineServer, GUIUpdate + 17, mainserver.cpp (525)
+	FOnlineServer, ThreadBeginExecution + 44, common.cpp (1546)
+	FOnlineServer, ptw32_threadStart + 119, ptw32_threadstart.c (225)
+	FOnlineServer, _callthreadstartex + 27, threadex.c (314)
+	FOnlineServer, _threadstartex + 100, threadex.c (292)
+	kernel32, BaseThreadInitThunk + 18
+	ntdll, RtlInitializeExceptionChain + 99
+	ntdll, RtlInitializeExceptionChain + 54
+
+Thread 'ScriptTimeout' (7808)
+	ntdll, NtDelayExecution + 21
+	KERNELBASE, Sleep + 15
+	FOnlineServer, Thread::Sleep + 13, common.cpp (1638)
+	FOnlineServer, RunTimeout + 1400, script.cpp (1225)
+	FOnlineServer, ThreadBeginExecution + 44, common.cpp (1546)
+	FOnlineServer, ptw32_threadStart + 119, ptw32_threadstart.c (225)
+	FOnlineServer, _callthreadstartex + 27, threadex.c (314)
+	FOnlineServer, _threadstartex + 100, threadex.c (292)
+	kernel32, BaseThreadInitThunk + 18
+	ntdll, RtlInitializeExceptionChain + 99
+	ntdll, RtlInitializeExceptionChain + 54
+
+Loaded modules
+	D:\Fonline\MyFonline\Server\FOnlineServer.exe (00400000)
+	C:\Windows\SysWOW64\ntdll.dll (77660000)
+	C:\Windows\syswow64\kernel32.dll (77150000)
+	C:\Windows\syswow64\KERNELBASE.dll (76A60000)
+	C:\Windows\syswow64\USER32.dll (76840000)
+	C:\Windows\syswow64\GDI32.dll (76AB0000)
+	C:\Windows\syswow64\LPK.dll (77630000)
+	C:\Windows\syswow64\USP10.dll (75260000)
+	C:\Windows\syswow64\msvcrt.dll (75300000)
+	C:\Windows\syswow64\ADVAPI32.dll (769C0000)
+	C:\Windows\SysWOW64\sechost.dll (77130000)
+	C:\Windows\syswow64\RPCRT4.dll (756E0000)
+	C:\Windows\syswow64\SspiCli.dll (75070000)
+	C:\Windows\syswow64\CRYPTBASE.dll (75060000)
+	C:\Windows\syswow64\WS2_32.dll (770F0000)
+	C:\Windows\syswow64\NSI.dll (767A0000)
+	C:\Windows\system32\dbghelp.dll (746A0000)
+	C:\Windows\syswow64\PSAPI.DLL (75A70000)
+	C:\Windows\system32\WINMM.dll (6A960000)
+	C:\Windows\WinSxS\x86_microsoft.windows.common-controls_6595b64144ccf1df_5.82.7601.18201_none_ec80f00e8593ece5\COMCTL32.dll (695D0000)
+	C:\Windows\syswow64\SHELL32.dll (75AE0000)
+	C:\Windows\syswow64\SHLWAPI.dll (751A0000)
+	C:\Windows\syswow64\ole32.dll (76DF0000)
+	C:\Windows\system32\IMM32.DLL (76740000)
+	C:\Windows\syswow64\MSCTF.dll (750D0000)
+	C:\Windows\system32\uxtheme.dll (6E430000)
+	C:\Windows\system32\dwmapi.dll (69A90000)
+	C:\Windows\syswow64\CLBCatQ.DLL (754F0000)
+	C:\Windows\syswow64\OLEAUT32.dll (76B90000)
+	C:\Windows\system32\msimtf.dll (69A80000)
+	C:\Windows\system32\VERSION.dll (74AA0000)
+	D:\Fonline\MyFonline\Server\scripts\fonline_test.dll (697A0000)
+	D:\Fonline\MyFonline\Server\scripts\fonline_tla.dll (670F0000)
+	C:\Windows\system32\api-ms-win-core-synch-l1-2-0.DLL (6DF80000)
+	D:\Fonline\MyFonline\Server\scripts\parameters.dll (66FD0000)
+
+AngelScript

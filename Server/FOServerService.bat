@@ -1,0 +1,1 @@
+start FOnlineServer.exe  -service

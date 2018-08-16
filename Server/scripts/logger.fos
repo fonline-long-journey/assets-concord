@@ -1,0 +1,91 @@
+﻿// FoRp logger by PigBoss
+
+#include "_defines.fos"
+#include "_macros.fos"
+
+void _LoggerCall( Critter& player, int type, int param1, int param2, string@ message, int[] @ param4 )
+{
+    logger( player, type, message );
+}
+
+void unsafe_LoggerCall( Critter& player, int param0, int param1, int param2, string@ param3, int[]@ param4 )
+{
+    logger( player, param0, param3 );
+}
+
+void logger( Critter& cr, int type, string@ message )
+{
+    string@ filename = "";
+    switch( type )
+    {
+
+    case DEADLOG:
+        filename = "DeadLog";
+        break;
+
+    case RADIOLOG:
+        filename = "RadioLog";
+        message = cr.Name + " " + cr.Id + " - " + message;
+        break;
+	
+	case ACCESSLOG:
+		filename = "AccessLog";
+		break;
+	
+    default:
+        return;
+    }
+    file f;
+    if( f.open( "logs\\" + filename + ".txt", "a" ) >= 0 )
+    {
+        f.writeString( __Day + "." + __Month + "." + __Year + " " + MakeTime( __FullSecond ) + message + "\n" );
+        f.close();
+    }
+    else
+        Log( "can't open log file!" );
+}
+
+string@ MakeTime( uint val )
+{
+    uint t = val % 86400,           // 60*60*24
+         m = t / 60, mm = m % 60,
+         h = m / 60, s = t % 60;
+
+    return ( ( h < 10 ) ? "0" : "" ) + h + ( ( mm < 10 ) ? ":0" : ":" ) + ( mm ) + ( ( s < 10 ) ? ":0" : ":" ) + ( s ) + " Х ";
+}
+
+void _getlog( Critter& player, int type, int param1, int param2, string@ message, int[] @ param4 )
+{
+    getlog( player, type );
+}
+
+void getlog( Critter& cr, int type )
+{
+    string@ filename = "";
+    switch( type )
+    {
+    case DEADLOG:
+        filename = "DeadLog";
+        break;
+
+    case RADIOLOG:
+        filename = "RadioLog";
+        break;
+    }
+    file f;
+    if( f.open( "logs\\" + filename + ".txt", "r" ) >= 0 )
+    {
+        string word = "";
+        uint   pos = 0;
+        f.setPos( 0 );
+        while( !f.isEndOfFile() )
+        {
+            pos = f.getPos();
+            word = f.readWord();
+            cr.Say( SAY_NETMSG, word );
+        }
+        f.close();
+    }
+    else
+        Log( "Can't open" );
+}

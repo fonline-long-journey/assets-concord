@@ -1,0 +1,227 @@
+#include "_macros.fos"
+#include "rp_notify.fos"
+#include "_colors.fos"
+
+import bool processAction(Critter@ cr, Critter@ target, Item@ item,  uint time, uint rate, string@ funcName) from "rp_utils";
+import void endAction(Critter@ cr, Critter@ target, uint itemPid, bool removeItem, uint itemId) from "rp_utils";
+import void hearshot( Critter& cr, Critter& target, ProtoItem& weapon, uint8 weaponMode, bool isSee ) from "rp_combat";
+import void InjureCritterBullet( Critter& cr, Critter& attacker, ProtoItem@ ammo, uint8 aim, uint dist ) from "health";
+import void InjureCritterBurn( Critter& cr, Critter& attacker, ProtoItem& weapon, uint8 aim ) from "health";
+
+void _Gun(Item& item, bool firstTime){
+	item.AmmoCount = 0;
+	item.Update();
+	item.SetEvent(ITEM_EVENT_USE, "e_GunUse");
+}
+
+void _Ammo(Item& item, bool firstTime){
+	//item.SetEvent(ITEM_EVENT_USE, "e_AmmoUse");
+}
+
+void _Shell(Item& item, bool firstTime){
+	if(firstTime)
+		item.PicMap = GetStrHash("art/items/shell_" + Random(1, 8) + ".png");
+}
+
+void _Magazine(Item& item, bool firstTime){
+	item.AmmoCount = item.Proto.Weapon_MaxAmmoCount;
+	item.AmmoPid = item.Proto.Weapon_DefaultAmmoPid;
+	item.Update();
+	
+	item.SetEvent(ITEM_EVENT_USE, "e_MagazineUse");
+}
+
+void unsafe_reload(Critter& player, int id, int param1, int param2, string@ param3, int[]@ param4){
+	Item@ weapon = GetItem(id);
+	if(weapon.Val3 > 0){
+		unloadMag(player, weapon);
+	}else{
+		player.RunClientScript("client_main@__ReloadMag", 0, 0, 0, null, null);
+	}	
+}
+
+void unsafe_commitSuicide(Critter& player, int id, int param1, int param2, string@ param3, int[]@ param4){
+	Item@ weapon = _CritGetItemHand(player);
+	commitSuicide(player, weapon);
+}
+
+bool e_GunUse(Item& weapon, Critter& cr, Critter@ onCritter, Item@ onItem, Scenery@ onScenery){
+	
+	if(!valid(onCritter) && !valid(onItem) && !valid(onScenery)){
+		unloadMag(cr, weapon);	
+		return true;
+	}
+	
+	return false;
+}
+
+void commitSuicide(Critter@ cr, Item@ weapon){
+	uint time = REAL_SECOND(5);
+	string@ func = "rp_ammo@cte_shotSelf";
+	
+	if(processAction(cr, null, weapon, time, weapon.Id, func)){
+		cr.Say(SAY_EMOTE, "Подносит дуло к своей голове");
+	}
+	
+}
+
+uint cte_shotSelf( Critter& cr, int identifier, uint& rate){
+	Item@ weapon = GetItem(rate);
+	ProtoItem@ ammo = GetProtoItem(weapon.AmmoPid);
+	int chance = 100;
+	bool isShot = false;
+	if(weapon.Proto.Weapon_IsRevolver)
+	{
+		float maxAmmo = float(weapon.Proto.Weapon_MaxAmmoCount);
+		float ammoCount = float(weapon.AmmoCount);
+		
+		chance = weapon.AmmoCount == 0 ? 0 : uint( (ammoCount / maxAmmo ) * 100.0f );
+	}
+	
+	isShot = chance > Random(0, 100) && weapon.AmmoCount > 0;
+	
+	if(!isShot){
+		mapMessage(cr, int(COLOR_GRAY), cr.HexX, cr.HexY, "Click...");
+		cr.PlaySound( 'W', SOUND_WEAPON_EMPTY, _WeaponSoundId( weapon.Proto, 0 ), '1', true );
+		cr.Wait(weapon.Proto.Weapon_Use_Time);
+	}else{
+		weapon.AmmoCount--;
+		
+		if(!weapon.Proto.Weapon_Reload_One_By_One && weapon.Proto.Weapon_Type == WEAPON_TYPE_GUN && valid(ammo) ){
+			@ammo = GetProtoItem(weapon.Val2);
+		}
+		
+		hearshot(cr, cr, weapon.Proto, uint8( 0 ), true);
+		
+		bool isLaserBeam = _WeaponDmgType(weapon.Proto, 0) == DAMAGE_LASER;
+
+		
+		if(!isLaserBeam){
+			InjureCritterBullet(cr, cr, ammo, HIT_LOCATION_HEAD, 1);
+		}else{
+			InjureCritterBurn(cr, cr, weapon.Proto, HIT_LOCATION_HEAD);
+		}
+	}
+	
+	endAction(cr, null, 0, false, weapon.Id);
+	return 0;
+}
+
+
+void unloadMag(Critter@ cr, Item@ weapon)
+{
+	if(weapon.Val3 > 0 && !weapon.Proto.Weapon_Reload_One_By_One){
+		cr.Say(SAY_EMOTE, "Вынимает магазин из оружия");
+		Item@ magazine = cr.AddItem( weapon.AmmoPid, 1);
+		magazine.AmmoCount = weapon.AmmoCount;
+		if(weapon.AmmoCount == 0){
+			magazine.AmmoPid = 0;
+		}else{
+			magazine.AmmoPid = weapon.Val2;
+		}		
+		weapon.AmmoCount = 0;
+		weapon.Val2 = 0;
+		weapon.Val3 = 0;
+		//weapon.AmmoPid = 0;
+		magazine.Update();
+		weapon.Update();
+		_CritAnimate(cr, ANIM2_RELOAD);
+		cr.GetMap().PlaySound("WRA1XXX1.ACM", cr.HexX, cr.HexY, 5);
+	}else{
+		if(weapon.Val3 == 0 ){
+			cr.Say(SAY_NETMSG, "Оружие не заряжено.");
+		}
+	}
+}
+
+
+bool e_MagazineUse(Item& item, Critter& crit, Critter@ onCritter, Item@ onItem, Scenery@ onScenery)
+{
+	uint time = REAL_SECOND(2);
+	string@ func = "rp_ammo@cte_LoadMagazine";
+	Item@[] items;
+	crit.GetItems(SLOT_HAND2, items);
+	Item@ ammo = items.isEmpty() ? null : items[0];
+	string@ message = "Начинает заряжать магазин";
+	
+	if(valid(onCritter) || valid(onItem) || valid(onScenery)){
+		return true;
+	}
+	
+	if(!valid(ammo) || int( item.Proto.Ammo_MagazineCaliber ) != ammo.Proto.Ammo_Caliber)
+	{
+		func = "rp_ammo@cte_UnloadMagazine";
+		message = "Начинает разряжать магазин";
+	}
+	
+	
+	if(processAction(crit, null, item, time, valid(ammo) ? ammo.Id : item.Id, func)){
+		crit.Say(SAY_EMOTE, message);
+	}
+	return true;
+}
+
+uint cte_LoadMagazine( Critter& cr, int identifier, uint& rate){
+	Item@ ammo = GetItem(rate);
+	Item@[] items;
+	cr.GetItems(SLOT_HAND1, items);
+
+	Item@ magazine = items[0];
+	
+	if(!valid(ammo) || !valid(magazine)){
+		cr.Say(SAY_NETMSG, "Действие прервано.");
+		endAction(cr, null, 0, false, magazine.Id);
+		return 0;
+	}
+		
+	if(magazine.AmmoPid != 0 && magazine.AmmoPid != ammo.GetProtoId()){
+		cr.Say(SAY_NETMSG, "В магазине уже находятся патроны другого типа.");
+		endAction(cr, null, 0, false, magazine.Id);
+		return 0;
+	}
+
+	if(ammo.CritId != cr.Id || ammo.CritSlot != SLOT_HAND2){
+		cr.Say(SAY_NETMSG, "Действие прервано.");
+		endAction(cr, null, 0, false, magazine.Id);
+		return 0;
+	}
+	
+	if(magazine.Proto.Weapon_MaxAmmoCount == magazine.AmmoCount){
+		cr.Say(SAY_NETMSG, "Магазин заполнен.");
+		endAction(cr, null, 0, false, magazine.Id);
+		return 0;
+	}else{
+		cr.Say(SAY_EMOTE_ON_HEAD, "Заряжает магазин");
+		cr.GetMap().PlaySound("RIFLE.ACM", cr.HexX, cr.HexY, 5);
+		magazine.AmmoPid = ammo.GetProtoId();
+		magazine.AmmoCount++;
+		magazine.Update();
+		_SubItem( ammo, 1 );		
+	}
+	
+	return REAL_SECOND( 2 );
+}
+
+uint cte_UnloadMagazine( Critter& cr, int identifier, uint& rate){
+	Item@ magazine = GetItem(rate);
+	
+	if(magazine.AmmoCount == 0){
+		cr.Say(SAY_NETMSG, "Магазин разряжен.");
+		magazine.AmmoPid = 0;
+		endAction(cr, null, 0, false, magazine.Id);
+		return 0;
+	}else{
+		cr.Say(SAY_EMOTE_ON_HEAD, "Разряжает магазин");
+		cr.GetMap().PlaySound("RIFLE.ACM", cr.HexX, cr.HexY, 5);
+
+		Item@ existAmmo = cr.GetItem( magazine.AmmoPid, -1 );
+        if( not valid( existAmmo ) )
+            cr.AddItem( magazine.AmmoPid, 1 );
+        else
+            _IncItem( existAmmo, 1 );
+			magazine.AmmoCount--;
+			magazine.Update();
+	}
+	
+	return REAL_SECOND( 2 );
+}

@@ -1,0 +1,82 @@
+// Praise the PigBoss for this great script
+#ifdef __SERVER
+	#include "_defines.fos"
+	
+	void Notify(Critter& atcr, Critter& trgt, string message){
+		
+		Map@ map = atcr.GetMap();
+		Critter@[] crs = {atcr};
+		Critter@[] res;
+		
+		map.GetCrittersSeeing(crs, true, FIND_ALL | FIND_ONLY_PLAYERS, res);
+
+		for(uint i = 0; i < res.length(); ++i)
+			if( res[i].IsPlayer() ){
+				res[i].RunClientScript( "rp_notify@Notify", atcr.Id, trgt.Id, 0, message, null);
+			}
+	}
+	
+	void mapMessage(Critter& cr,int color, int hexX, int hexY, string message){
+		cr.RunClientScript( "rp_notify@mapMessage", color, hexX, hexY, message, null);
+	}
+	
+	void sendTalking(Critter& cr,int id, int hexX, int hexY, string message){
+		cr.RunClientScript( "rp_notify@talking", id, hexX, hexY, message, null);
+	}
+	
+	void sendMuffled(Critter& cr,int id, int hexX, int hexY, string message){
+		cr.RunClientScript( "rp_notify@muffled", id, hexX, hexY, message, null);
+	}
+	
+#endif
+
+#ifdef __CLIENT
+	#include "_client_defines.fos"
+	
+	void Notify(int atcrId, int trgtId, int param2, string@ message, int[]@ param4){
+		string atcrName = GetCritter(atcrId) !is null ? GetCritter(atcrId).Name : "кто-то";
+		string trgtName = GetCritter(trgtId) !is null ? GetCritter(trgtId).Name : "кто-то";
+		string res = ReplaceText(message, "%atcr", atcrName);
+		res = ReplaceText(res, "%trgt", trgtName);
+		Message(res, FOMB_COMBAT_RESULT );
+	}
+	
+	void muffled(int id, int hexX, int hexY, string@ message, int[]@ param4)
+	{
+		message = "|0xFFBB33CC " + "**неразборчиво** |0xF8F993 ";
+		MapMessage(message, hexX, hexY, __TextDelay + message.length() * 30, 0xF8F993, true, Random(-5, 5), -20 );
+		CritterCl@ talker = GetCritter(id);
+		
+		string name = "Некто";
+		
+		if( talker !is null )
+		{
+			name = talker.Name;
+		}
+		
+		Message(name + ": " + message  );
+	}
+	
+	void talking(int id, int hexX, int hexY, string@ message, int[]@ param4)
+	{
+		MapMessage(message, hexX, hexY, __TextDelay + message.length() * 30, 0xF8F993, true, Random(-5, 5), -20 );
+		CritterCl@ talker = GetCritter(id);
+		
+		string name = "Некто";
+		
+		if( talker !is null )
+		{
+			name = talker.Name;
+		}
+		
+		Message(name + ": |0xF8F993 " + message);
+	}
+	
+	void mapMessage(int color, int hexX, int hexY, string@ message, int[]@ param4){
+		MapMessage(message, hexX, hexY, __TextDelay + message.length() * 30, color, true, Random(-5, 5), -20 );
+				
+		if( color == 0xF8F993)
+			Message("кто-то: |0xF8F993 " + message);
+	}
+
+#endif

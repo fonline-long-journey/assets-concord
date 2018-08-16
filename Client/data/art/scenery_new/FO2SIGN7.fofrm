@@ -1,0 +1,16 @@
+fps=0
+count=10
+offs_x=-18
+offs_y=28
+
+[dir_0]
+frm_0=FO2SIGN7_1.png
+frm_1=FO2SIGN7_2.png
+frm_2=FO2SIGN7_1.png
+frm_3=FO2SIGN7_1.png
+frm_4=FO2SIGN7_1.png
+frm_5=FO2SIGN7_2.png
+frm_6=FO2SIGN7_1.png
+frm_7=FO2SIGN7_1.png
+frm_8=FO2SIGN7_1.png
+frm_9=FO2SIGN7_1.png

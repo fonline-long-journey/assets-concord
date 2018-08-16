@@ -1,0 +1,535 @@
+#include "_macros.fos"
+#include "_colors.fos"
+#include "rp_utils.fos"
+#include "npc_ai.fos"
+
+
+import void Quake_Effect( Critter& cr, int noise, int time ) from "rp_effects";
+import void InjureCritter(Critter& target, Critter& attacker, ProtoItem@ ammo, uint aim) from "health";
+
+void spawnShells(Map@ map, uint16 hexX, uint16 hexY, uint count, uint shellPid){
+	map.AddItem(hexX, hexY, shellPid, count);
+}
+
+void CombatAttack( Critter& cr, Critter& target, ProtoItem& weapon, uint8 weaponMode, ProtoItem@ ammo )
+{
+	uint8           use = _WeaponModeUse( weaponMode );
+    bool isCloseCombat = _WeaponIsHtHAttack(weapon, use);
+    if( isCloseCombat )
+        CloseCombatAttack( cr, target, weapon, weaponMode );
+    else
+        RangedAttack( cr, target, weapon, weaponMode, ammo );
+}
+
+void RangedAttack( Critter& cr, Critter& target, ProtoItem& weapon, uint8 weaponMode, ProtoItem@ ammo )
+{
+	uint8           use = _WeaponModeUse( weaponMode );
+    uint8           aim = _WeaponModeAim( weaponMode );
+	int   wpnMaxDist = _WeaponMaxDist( weapon, use );
+    Item@           realWeapon = _CritGetItemHand( cr );
+    Map@            map = cr.GetMap();
+    int skill = _WeaponSkill( weapon, use );
+    int    skillVal = cr.Param[ skill ];
+    uint16 ammoRound = _WeaponRound( weapon, use );
+    uint16 hx = cr.HexX;
+    uint16 hy = cr.HexY;
+    uint16 tx = target.HexX;
+    uint16 ty = target.HexY;
+	bool directFrontOrBack = !(( cr.Dir + 3 ) % 6 != target.Dir )|| cr.Dir == target.Dir;
+    bool crIsPlayer = cr.IsPlayer();
+	bool attackFront = true;
+	uint dir = GetDirection( cr.HexX, cr.HexY, target.HexX, target.HexY );
+	float angle = 0.0f; 
+	uint16 wX=0, wY=0;
+	Critter@[] crs;
+	bool isLaserBeam = _WeaponDmgType(weapon, use) == DAMAGE_LASER;
+	
+	if( _WeaponEffect( weapon, use ) != 0 )
+    {
+        map.RunFlyEffect( _WeaponEffect( weapon, use ), cr, target, hx, hy, tx, ty );
+    }
+	
+	if(ammo.Ammo_ShellType != 0)
+	{
+		spawnShells(map, hx, hy, ammoRound, ammo.Ammo_ShellType);
+	}
+	
+
+	
+	if( ( dir == target.Dir || ( ( dir + 1 ) % 6 ) == target.Dir || ( ( dir + 5 ) % 6 ) == target.Dir ) )
+        attackFront = false;
+	
+    if( aim == HIT_LOCATION_EYES && valid( cr ) && ( cr.Dir + 3 ) % 6 != target.Dir )
+        aim = HIT_LOCATION_HEAD;
+		
+	cr.Action( ACTION_USE_WEAPON, use, realWeapon);
+	
+	Quake_Effect( cr, weapon.Weapon_Recoil, 200 - (cr.Param[ST_STRENGTH] * 10) );	
+	
+	Notify(cr, target, "%atcr стреляет в %trgt" );
+	
+	hearshot(cr, target, weapon, weaponMode);
+
+    if( ammoRound > 0 && valid( realWeapon ) && cr.Param[MODE_UNLIMITED_AMMO] == 0 )
+    {
+        if( realWeapon.AmmoCount <= ammoRound ){
+            ammoRound = realWeapon.AmmoCount;
+			realWeapon.AmmoCount = 0;			
+		}
+        else
+            realWeapon.AmmoCount -= ammoRound;
+        realWeapon.Update();
+    }	
+
+    // Npc attack text
+    if( !crIsPlayer )
+        AI_TrySayCombatText( cr, COMBAT_TEXT_ATTACK );
+
+    // Add event, always
+    target.EventAttacked( cr );
+	
+    int toHit = skillVal;
+    int dist = GetDistantion( hx, hy, target.HexX, target.HexY );
+	toHit -= ((dist * dist) / 10);
+	toHit += weapon.Weapon_Accurate;
+
+	if( isRunning(target) && !directFrontOrBack ){
+		toHit /= 2;
+	}	
+	toHit -= ammoRound * CLAMP( weapon.Weapon_Recoil - (cr.Param[ST_STRENGTH] * 5), 0, 100 );
+	
+	bool isCover = false;
+	uint16 hexX = hx;
+	uint16 hexY = hy;
+	uint16 ttx = tx;
+	uint16 tty = ty;
+	map.GetHexCoordWall(tx, ty, hexX, hexY, 0.0f, 0);
+	bool test = (hexX != cr.HexX || hexY != cr.HexY);
+	map.MoveHexByDir(ttx, tty, GetDirection( target.HexX, target.HexY, cr.HexX, cr.HexY ), 1);
+	if( (hexX != cr.HexX || hexY != cr.HexY)  && inCombat( target ) && GetDistantion(hexX, hexY, tx, ty) < 1 && map.GetCrittersHex(ttx, tty, 0,  FIND_ALL, null) == 0)
+		isCover = true;
+
+	if( isCover ){
+		toHit /= 2;
+		toHit -= dist * dist;
+	}
+	
+	if( !target.IsKnockout() && dist > cr.Param[ST_PERCEPTION] ){
+		toHit /= GetHitAimDiv( aim );
+	}
+	toHit = CLAMP( toHit, 5, 95 );
+
+	crSay(cr, "Шанс попасть был -" + toHit);
+	
+	
+	int dodgeRoll = Random(CLAMP( 2 - (dist / 10), 0, 2), 5);
+	bool dodged = false;
+	if( (target.Param[ST_LUCK] + target.Param[ST_AGILITY] + target.Param[ST_PERCEPTION]) >= (25 + dodgeRoll) && inCombat(target) ){
+		target.Action( ACTION_DODGE, 0, null );
+		Quake_Effect(target, 10, 100);
+		Notify(cr, target, "%trgt уворачивается от выстрела %atcr" );
+		dodged = true;
+	}
+	
+	if((toHit < Random(0, 100) || dodged) && ammo.Ammo_Type != AMMO_TYPE_SHOT){
+		if(!dodged)
+			Notify(cr, target, "%atcr не попадает в %trgt" );
+
+		for( uint i = 0; i < ammoRound; ++i ){
+			wX = tx;
+			wY = ty;
+			angle = float(Random(-20 , 20));
+			map.GetHexCoord(hx, hy, wX, wY, angle, 50);
+			int sX = wX, sY = wY;
+			map.GetCrittersPath( hx, hy, sX, sY, angle, 50, FIND_LIFE_AND_KO, crs );
+			if(crs.length() > 0){
+				int crnum = Random(0, crs.length() - 1);
+				if(IsHit( cr,crs[crnum], angle, isLaserBeam, false) ){
+					InjureCritter(crs[crnum], cr, ammo, Random(2,6));
+					if(isLaserBeam){
+						int[] values = {cr.HexX, cr.HexY, target.HexX, target.HexY, map.Id};
+						CreateTimeEvent(__FullSecond + REAL_MS(200), "e_LaserBeam", values, false);
+					}
+				}
+			}else{
+				if(!isLaserBeam){
+					map.SetText( wX, wY, COLOR_LGRAY, "пуф" );
+				}else{
+					//Spawn laser beam for Laser Weapons
+					int[] values = {cr.HexX, cr.HexY, wX, wY, map.Id};
+					CreateTimeEvent(__FullSecond + REAL_MS(200), "e_LaserBeam", values, false);
+				}
+			}
+
+			crs.resize(0);
+		}
+		if( isCover && !isLaserBeam ){
+			map.SetText( ttx, tty, COLOR_DDGREEN, "рикошет" );
+		}
+
+	
+	return;
+	}
+
+	if( toHit < Random( 0, 95) )
+		aim = Random( 2,8 );
+
+	if( dist  < 2 && attackFront && !target.IsKnockout() && inCombat(target)){
+		int parry = target.Skill[SK_UNARMED] + Random(0, 30);
+		parry -= cr.Skill[SK_UNARMED] + Random(0,30);
+		switch(weapon.Weapon_GunType){
+		case GUN_TYPE_PISTOL:
+		case GUN_TYPE_SUBMACHINEGUN:
+			parry += 10;
+			break;
+		case GUN_TYPE_RIFLE:
+			parry += 40;
+			break;
+		case GUN_TYPE_ASSAULTRIFLE:
+			parry += 30;
+			break;
+		default:
+			parry += 80;
+			break;
+		}
+		if( parry > Random(0, 100) )
+		{
+			crSay(cr, "ParrySuccess -" + parry );
+			
+			if( target.Param[ST_AGILITY] + (target.Skill[SK_UNARMED] / 10) > Random(15,30) ){
+				target.Action( ACTION_USE_WEAPON, 0, _CritGetItemHand(cr) );
+				Notify(cr, target, "%trgt выворачивает оружие в %atcr" );
+				InjureCritter(cr, cr, ammo, Random(2,8));
+				Quake_Effect( target, weapon.Weapon_Recoil, 200 - (target.Param[ST_STRENGTH] * 10) );
+				return; //Отражение атаки в стреляющего
+			}
+			target.Action( ACTION_DODGE, 0, null );
+			Quake_Effect(target, 25, 100);
+			Notify(cr, target, "%trgt отворачивает направленное на него оружие %atcr в сторону" );
+			map.GetHexCoordWall(hx,hy,hexX,hexY, 0.0f + Random(-30, 30), 50);
+			if(hexX != tx || hexY !=  ty){
+				map.SetText( hexX, hexY, COLOR_LGRAY, "пуф" );
+			}
+			return; //Парирование огнестрельной атаки в упор 
+		}
+	}
+
+	if( ammoRound > 1 || ammo.Ammo_Type == AMMO_TYPE_SHOT ){ //Разброс
+		if(ammoRound > 1){
+		int correction = 0;
+		bool isHit = true;
+		if(toHit < Random(0, 95)){
+			correction = Random(-20, 20);
+			isHit = false;
+		}
+		for( uint i = 0; i < ammoRound - 1; ++i ){
+			wX = tx;
+			wY = ty;
+			angle = float(Random(-3 + correction , 3 + correction));
+			map.GetHexCoord(hx, hy, wX, wY, angle, wpnMaxDist);
+			int sX = wX, sY = wY;
+			map.GetCrittersPath( hx, hy, sX, sY, angle, wpnMaxDist, FIND_LIFE_AND_KO, crs );
+			if(crs.length() > 0){
+				int crnum = Random(0, crs.length() - 1);
+				if(IsHit( cr,crs[crnum], angle, isLaserBeam, isHit) ){
+					InjureCritter(crs[crnum], cr, ammo, Random(HIT_LOCATION_HEAD, HIT_LOCATION_GROIN));
+				}
+			}else{
+				map.SetText( wX, wY, COLOR_LGRAY, "пуф" );
+			}
+			crs.resize(0);
+		}
+		}else{
+		float startSector = -4;
+		float endSector = 4;
+		if(toHit < Random(0, 95)){
+			int correction = Random(-40, 40);
+			startSector += float (correction);
+			endSector += float (correction);
+		}
+		for( float i = startSector; i < endSector; i = i + 1.0f ){
+			wX = tx;
+			wY = ty;
+			angle = 0.0f + i;
+			map.GetHexCoord(hx, hy, wX, wY, angle, wpnMaxDist);
+			int sX = wX, sY = wY;
+			map.GetCrittersPath( hx, hy, sX, sY, angle, wpnMaxDist, FIND_LIFE_AND_KO, crs );
+			
+			if(crs.length() > 0){
+				int crnum = Random(0, crs.length() - 1);
+				if(IsHit( cr,crs[crnum], angle, isLaserBeam, true) ){
+					InjureCritter(crs[crnum], cr, ammo, Random(HIT_LOCATION_HEAD, HIT_LOCATION_GROIN));
+				}
+			}else{
+				map.SetText( wX, wY, COLOR_LGRAY, "пуф" );
+			}
+			crs.resize(0);
+		}
+		return;
+		}
+	}
+	if(isLaserBeam){
+		int[] values = {cr.HexX, cr.HexY, target.HexX, target.HexY, map.Id};
+		CreateTimeEvent(__FullSecond + REAL_MS(200), "e_LaserBeam", values, false);
+	}
+	InjureCritter(target, cr, ammo, aim);
+}
+
+void CloseCombatAttack( Critter& cr, Critter& target, ProtoItem& weapon, uint8 weaponMode )
+{
+	uint8           use = _WeaponModeUse( weaponMode );
+	uint8           aim = _WeaponModeAim( weaponMode );
+    int  toHit = 0;
+    int  ArmorWeight = ( valid( _CritGetItemArmor( cr ) ) ?  _CritGetItemArmor( cr ).Proto.Weight : 0 );
+    int  ArmorWeightTarget = ( valid( _CritGetItemArmor( target ) ) ?  _CritGetItemArmor( target ).Proto.Weight : 0 );
+	Item@ armor = _CritGetItemArmor( cr );
+	Item@ trgtArmor = _CritGetItemArmor( target );
+    bool isFlexibleArmor = ( valid ( armor ) ? armor.Proto.Armor_IsFlexible : true );
+    bool isFlexibleArmorTarget = ( valid ( trgtArmor ) ? trgtArmor.Proto.Armor_IsFlexible : true );
+    bool attackFront = true;
+	uint dir = GetDirection( cr.HexX, cr.HexY, target.HexX, target.HexY );
+    int skill = _WeaponSkill( weapon, use );
+	int    skillVal = cr.Param[ skill ];
+	target.EventAttacked( cr );
+
+	if( ( dir == target.Dir || ( ( dir + 1 ) % 6 ) == target.Dir || ( ( dir + 5 ) % 6 ) == target.Dir ) )
+        attackFront = false;
+	
+	cr.Action( ACTION_USE_WEAPON, _WeaponModeUse( weaponMode ), _CritGetItemHand(cr) );	
+	
+	if( !inCombat( target ) )    // Цель не находится в бою
+    {
+        if( target.Param[ST_PERCEPTION] + target.Param[ST_LUCK] > Random( 0, 100 ) && !target.IsKnockout() ){
+			Notify(cr, target, "%atcr бьет ничего не подозревающего %trgt, но он успевает увернуться." );
+            return; //Notify miss
+		}
+		Notify(cr, target, "%atcr бьет ничего не подозревающего %trgt " );
+		InjureCritter(target, cr, weapon, aim);
+		return; //Affect damage
+    }
+	Notify(cr, target, "%atcr бьет %trgt" );
+	
+    toHit += skillVal  + ( cr.Param[ST_AGILITY] * 3 );
+    if( !isFlexibleArmor )
+        toHit -= 30;
+
+	toHit /= GetHitAimDiv(aim); 
+		
+    if( CLAMP( toHit, 0, 95 ) <= Random( 0, 100 ) ){
+		Notify(cr, target, "%atcr промахивается пытаясь ударить %trgt" );
+        return;         // Notify miss
+	}
+
+    // Проверка на уворот
+    if( target.Param[ST_AGILITY] + target.Param[ST_LUCK] + target.Param[ST_PERCEPTION] > Random( 23 - (isFlexibleArmorTarget ? 5 : 0), 30 ) )
+    {
+		target.Action(ACTION_DODGE, 0, null);
+		Notify(cr, target, "%trgt уворачивается от удара %atcr" );
+        return;         // Notify dodge
+    }
+	uint8 mode = 0;
+	ProtoItem@ targetWeapon = cr.GetSlotProto( SLOT_HAND1, mode );
+    // Проверка на парирование
+	if(attackFront && !target.IsKnockout() && target.Damage[ DAMAGE_RIGHT_ARM ] == 0 && target.Damage[ DAMAGE_LEFT_ARM ] == 0){
+        int parry = 0;
+        int targetParry = 0;
+		int targetSkillValue = target.Param[SK_UNARMED];
+
+        targetParry += skillVal;
+		parry += targetSkillValue;
+     
+		parry += CLAMP((cr.Param[ST_STRENGTH] - target.Param[ST_STRENGTH]) * 10, -300, 300);
+		parry += Random( 0, 60 );
+
+		int result = CLAMP( targetParry - parry	, 5, 70 );
+		
+	 	if (result > Random(0, 100) ){
+			Notify(cr, target, "%trgt успешно отбивает атаку %atcr" );
+			return;
+		}
+		else
+		{
+			if( target.Param[ST_PERCEPTION] + target.Param[ST_AGILITY] + target.Param[ST_LUCK] > Random(10, 30)){
+				Notify(cr, target, "Атака %atcr пришлась на руки %trgt" );
+				InjureCritter(target, cr, weapon, Random(HIT_LOCATION_LEFT_ARM, HIT_LOCATION_RIGHT_ARM));
+				return;
+			}
+			Notify(cr, target, "%trgt не удается отразить атаку %atcr" );
+		}
+	}	
+	InjureCritter(target, cr, weapon, aim);
+}
+	
+
+
+bool IsHit( Critter& cr, Critter& target, float angle, bool isLaserBeam, bool shotGun){
+    uint8           aim = Random( 1, 6);
+    Map@            map = cr.GetMap();
+    uint16 hx = cr.HexX;
+    uint16 hy = cr.HexY;
+    uint16 tx = target.HexX;
+    uint16 ty = target.HexY;
+	bool directFrontOrBack = !(( cr.Dir + 3 ) % 6 != target.Dir )|| cr.Dir == target.Dir;
+
+    if( aim == HIT_LOCATION_EYES )
+        aim = HIT_LOCATION_HEAD;
+		
+    // Npc attack text
+    if( !target.IsPlayer() )
+        AI_TrySayCombatText( cr, COMBAT_TEXT_ATTACK );
+
+    // Add event, always
+    target.EventAttacked( cr );
+		
+    int toHit = 200;
+    int dist = GetDistantion( hx, hy, target.HexX, target.HexY );
+	
+	if( isRunning(target) && !directFrontOrBack){
+		toHit /= 3;
+	}
+
+	if( isWalking(target) && !directFrontOrBack){
+		toHit -= 20;
+	}		
+			
+	if(aim == HIT_LOCATION_HEAD )
+		toHit -= 50;
+
+	if( !inCombat(target))
+		if( Random(0,100) > toHit )
+			return true;
+		
+	bool isCover = false;
+	uint16 hexX = hx;
+	uint16 hexY = hy;
+	uint16 ttx = tx;
+	uint16 tty = ty;
+	map.GetHexCoordWall(tx, ty, hexX, hexY, 0.0f, 0);
+	bool test = (hexX != cr.HexX || hexY != cr.HexY);
+	map.MoveHexByDir(ttx, tty, GetDirection( target.HexX, target.HexY, cr.HexX, cr.HexY ), 1);
+	if( (hexX != cr.HexX || hexY != cr.HexY)  && inCombat( target ) && GetDistantion(hexX, hexY, tx, ty) < 1 && map.GetCrittersHex(ttx, tty, 0,  FIND_ALL, null) == 0)
+		isCover = true;
+		
+	toHit -= dist;
+	
+	if( isCover ){
+		toHit /= 3; 
+	}
+	
+	toHit = CLAMP(toHit, 0, 60);
+	bool dodged = false;
+	if( (target.Param[ST_LUCK] + target.Param[ST_AGILITY] + target.Param[ST_PERCEPTION]) >= (20 + Random(0,10)) ){
+		Notify(cr, target, "%trgt уворачивается от шальной пули" );
+		dodged = true;
+	}
+	
+	if(toHit < Random(0, 100) || dodged){
+	
+		if( isCover ){
+			Notify(cr, target, "%trgt прячется от шальной пули за укрытием" );
+			if(isLaserBeam){
+				int[] values = {cr.HexX, cr.HexY, ttx, tty, map.Id};
+				CreateTimeEvent(__FullSecond + REAL_MS(200), "e_LaserBeam", values, false);
+			}else{
+				map.SetText( ttx, tty, COLOR_DDGREEN, "рикошет" );
+			}
+			return false;
+		}else{
+			map.GetHexCoord(hx,hy,hexX,hexY, angle, 50);
+			if(hexX != tx || hexY !=  ty){
+				if(isLaserBeam){
+					int[] values = {cr.HexX, cr.HexY, hexX, hexY, map.Id};
+					CreateTimeEvent(__FullSecond + REAL_MS(200), "e_LaserBeam", values, false);
+				}else{
+					map.SetText( hexX, hexY, COLOR_LGRAY, "пуф" );
+				}
+			}
+		}
+		return false;
+	}
+
+	Notify(cr, target, "в %trgt попадает шальная пуля" );
+	return true;
+	}
+
+uint GetHitAimDiv( int hitLocation )
+{
+    switch( hitLocation )
+    {
+    case HIT_LOCATION_NONE:
+    case HIT_LOCATION_UNCALLED:
+    case HIT_LOCATION_TORSO:
+        return 1;
+    case HIT_LOCATION_EYES:
+    case HIT_LOCATION_HEAD:
+        return 2;
+    case HIT_LOCATION_LEFT_ARM:
+    case HIT_LOCATION_RIGHT_ARM:
+    case HIT_LOCATION_GROIN:
+    case HIT_LOCATION_RIGHT_LEG:
+    case HIT_LOCATION_LEFT_LEG:
+        return 1;
+    default:
+        break;
+    }
+    return 0;
+}
+
+void hearshot( Critter& cr, Critter& target, ProtoItem& weapon, uint8 weaponMode){
+	hearshot( cr, target, weapon, weaponMode, false );
+}
+
+void hearshot( Critter& cr, Critter& target, ProtoItem& weapon, uint8 weaponMode, bool isSee )
+{
+    Item@ wep = _CritGetItemHand( cr );
+    if( valid( wep ) )
+    {
+        int    type = 0;
+        uint8  use = _WeaponModeUse( weaponMode );
+        uint16 ammoRound = _WeaponRound( weapon, use );
+        if( ammoRound > 1 )
+        {
+            type = 1;
+        }
+        if( wep.Proto.Weapon_HearRadius != 0 )
+        {
+            Critter@[] crits;
+			bool seeing;
+            cr.GetMap().GetCrittersHex( cr.HexX, cr.HexY, wep.Proto.Weapon_HearRadius, FIND_ALL | FIND_ONLY_PLAYERS, crits );
+            for( uint i = 0; i < crits.length(); i++ )
+            {
+				if(isSee){
+					seeing = true;
+				}else{
+					seeing = !crits[ i ].IsSee( cr );
+				}
+				
+				if(cr.Id == crits[i].Id)
+					continue;
+				
+                if( type == 0 && isSee )
+                    crits[ i ].PlaySound( 'W', SOUND_WEAPON_USE, _WeaponSoundId( wep.Proto, use ), '1', true );
+                if( type == 1 && isSee )
+                    crits[ i ].PlaySound( 'W', SOUND_WEAPON_USE, _WeaponSoundId( wep.Proto, use ), '2', true );
+                crits[ i ].RunClientScript( "rp_effects@__HearShot", cr.HexX, cr.HexY, type, null, null );
+            }
+        }
+    }
+}
+
+uint e_LaserBeam(uint[]@ values){
+	uint16 hexX = values[0], hexY = values[1], tx = values[2], ty = values[3];
+	Map@ map = GetMap(values[4]);
+	uint8 dir = GetDirection(hexX, hexY, tx, ty);
+	
+	map.MoveHexByDir( hexX, hexY, dir, 1);
+
+	Critter@[] crs;
+	map.GetCrittersWhoViewPath(hexX, hexY, tx, ty, FIND_ALL | FIND_ONLY_PLAYERS, crs);
+	int[] coords = {hexX, hexY, tx, ty};
+
+	for(uint i = 0; i < crs.length(); i++){
+		crs[i].RunClientScript("client_main@addLaserBeam", 0, 0, 0, null, coords);
+	}
+	return 0;
+}

@@ -1,0 +1,12 @@
+Application
+	Name        FOnlineServer
+	Version     476
+	OS          6.1.7601 (Service Pack 1)
+	Timestamp   2017.09.09 00:44:50
+
+Exception
+	Code      EXCEPTION_ACCESS_VIOLATION
+	Address   0x77AE8E19
+	Flags     0x0
+	Info      Attempted to write to an 0x00000014
+

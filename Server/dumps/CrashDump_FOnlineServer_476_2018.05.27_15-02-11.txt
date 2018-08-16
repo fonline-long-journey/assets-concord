@@ -1,0 +1,302 @@
+Application
+	Name        FOnlineServer
+	Version     476
+	OS          6.2.9200 ()
+	Timestamp   2018.05.27 15:02:11
+
+Exception
+	Code      EXCEPTION_ACCESS_VIOLATION
+	Address   0x00503149
+	Flags     0x0
+	Info      Attempted to read to an 0x00002470
+
+Thread 'Logic' (13476, current)
+	FOnlineServer, FOServer::SScriptFunc::Crit_EventAttacked + 57, serverscript.cpp (3521)
+	FOnlineServer, CallCDeclFunctionObjFirst + 46, as_callfunc_x86.cpp (535)
+	FOnlineServer, CallSystemFunctionNative + 1019, as_callfunc_x86.cpp (248)
+	FOnlineServer, CallSystemFunction + 252, as_callfunc.cpp (693)
+	FOnlineServer, asCContext::ExecuteNext + 2315, as_context.cpp (2493)
+	FOnlineServer, asCContext::Execute + 649, as_context.cpp (1276)
+	FOnlineServer, Script::RunPrepared + 119, script.cpp (2508)
+	FOnlineServer, Critter::ParseScript + 131, critter.cpp (1783)
+	FOnlineServer, FOServer::SScriptFunc::Crit_SetScript + 86, serverscript.cpp (2967)
+	FOnlineServer, CallCDeclFunctionObjFirst + 46, as_callfunc_x86.cpp (535)
+	FOnlineServer, CallSystemFunctionNative + 1019, as_callfunc_x86.cpp (248)
+	FOnlineServer, CallSystemFunction + 252, as_callfunc.cpp (693)
+	FOnlineServer, asCContext::ExecuteNext + 2315, as_context.cpp (2493)
+	FOnlineServer, asCContext::Execute + 649, as_context.cpp (1276)
+	FOnlineServer, Script::RunPrepared + 119, script.cpp (2508)
+	FOnlineServer, Map::ParseScript + 151, map.cpp (1715)
+	FOnlineServer, Map::Generate + 3610, map.cpp (426)
+	FOnlineServer, FOServer::RegenerateMap + 161, serverclient.cpp (1376)
+	FOnlineServer, FOServer::Process_Command + 5280, server.cpp (2728)
+	FOnlineServer, FOServer::Process + 1316, server.cpp (1596)
+	FOnlineServer, FOServer::Logic_Work + 442, server.cpp (677)
+	FOnlineServer, ThreadBeginExecution + 44, common.cpp (1546)
+	FOnlineServer, ptw32_threadStart + 119, ptw32_threadstart.c (225)
+	FOnlineServer, _callthreadstartex + 27, threadex.c (314)
+	FOnlineServer, _threadstartex + 100, threadex.c (292)
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'GUI' (6880)
+	win32u, NtUserMsgWaitForMultipleObjectsEx + 12
+	USER32, MsgWaitForMultipleObjectsEx + 61
+	USER32, MsgWaitForMultipleObjects + 32
+	FOnlineServer, fl_wait + 665, fl_win32.cxx (399)
+	FOnlineServer, Fl::wait + 23, fl.cxx (454)
+	FOnlineServer, Fl::wait + 33, fl.cxx (598)
+	FOnlineServer, main + 1209, mainserver.cpp (210)
+	FOnlineServer, WinMain + 402, fl_call_main.c (115)
+	FOnlineServer, __tmainCRTStartup + 282, crt0.c (275)
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'Unknown' (7660)
+	ntdll, ZwWaitForWorkViaWorkerFactory + 12
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+	FOnlineServer, Preprocessor::PragmaCallback::`scalar deleting destructor' + 24
+
+Thread 'Unknown' (13804)
+	ntdll, ZwWaitForWorkViaWorkerFactory + 12
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'GUIUpdate' (13244)
+	ntdll, NtDelayExecution + 12
+	KERNELBASE, Sleep + 15
+	FOnlineServer, Thread::Sleep + 13, common.cpp (1638)
+	FOnlineServer, GUIUpdate + 17, mainserver.cpp (525)
+	FOnlineServer, ThreadBeginExecution + 44, common.cpp (1546)
+	FOnlineServer, ptw32_threadStart + 119, ptw32_threadstart.c (225)
+	FOnlineServer, _callthreadstartex + 27, threadex.c (314)
+	FOnlineServer, _threadstartex + 100, threadex.c (292)
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'Main' (9308)
+	ntdll, NtDelayExecution + 12
+	KERNELBASE, Sleep + 15
+	FOnlineServer, Thread::Sleep + 13, common.cpp (1638)
+	FOnlineServer, FOServer::MainLoop + 724, server.cpp (530)
+	FOnlineServer, GameLoopThread + 165, mainserver.cpp (712)
+	FOnlineServer, ThreadBeginExecution + 44, common.cpp (1546)
+	FOnlineServer, ptw32_threadStart + 119, ptw32_threadstart.c (225)
+	FOnlineServer, _callthreadstartex + 27, threadex.c (314)
+	FOnlineServer, _threadstartex + 100, threadex.c (292)
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'ScriptTimeout' (13876)
+	ntdll, NtDelayExecution + 12
+	KERNELBASE, Sleep + 15
+	FOnlineServer, Thread::Sleep + 13, common.cpp (1638)
+	FOnlineServer, RunTimeout + 1400, script.cpp (1225)
+	FOnlineServer, ThreadBeginExecution + 44, common.cpp (1546)
+	FOnlineServer, ptw32_threadStart + 119, ptw32_threadstart.c (225)
+	FOnlineServer, _callthreadstartex + 27, threadex.c (314)
+	FOnlineServer, _threadstartex + 100, threadex.c (292)
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'NetListen' (10972)
+	ntdll, NtWaitForSingleObject + 12
+	mswsock, sethostname + 14539
+	WS2_32, WSAAccept + 179
+	FOnlineServer, FOServer::Net_Listen + 51, server.cpp (887)
+	FOnlineServer, ThreadBeginExecution + 44, common.cpp (1546)
+	FOnlineServer, ptw32_threadStart + 119, ptw32_threadstart.c (225)
+	FOnlineServer, _callthreadstartex + 27, threadex.c (314)
+	FOnlineServer, _threadstartex + 100, threadex.c (292)
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'NetWork0' (11984)
+	ntdll, ZwRemoveIoCompletion + 12
+	FOnlineServer, FOServer::NetIO_Work + 33, server.cpp (1250)
+	FOnlineServer, ThreadBeginExecution + 44, common.cpp (1546)
+	FOnlineServer, ptw32_threadStart + 119, ptw32_threadstart.c (225)
+	FOnlineServer, _callthreadstartex + 27, threadex.c (314)
+	FOnlineServer, _threadstartex + 100, threadex.c (292)
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'NetWork1' (2520)
+	ntdll, ZwRemoveIoCompletion + 12
+	FOnlineServer, FOServer::NetIO_Work + 33, server.cpp (1250)
+	FOnlineServer, ThreadBeginExecution + 44, common.cpp (1546)
+	FOnlineServer, ptw32_threadStart + 119, ptw32_threadstart.c (225)
+	FOnlineServer, _callthreadstartex + 27, threadex.c (314)
+	FOnlineServer, _threadstartex + 100, threadex.c (292)
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'NetWork2' (6128)
+	ntdll, ZwRemoveIoCompletion + 12
+	FOnlineServer, FOServer::NetIO_Work + 33, server.cpp (1250)
+	FOnlineServer, ThreadBeginExecution + 44, common.cpp (1546)
+	FOnlineServer, ptw32_threadStart + 119, ptw32_threadstart.c (225)
+	FOnlineServer, _callthreadstartex + 27, threadex.c (314)
+	FOnlineServer, _threadstartex + 100, threadex.c (292)
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'NetWork3' (3564)
+	ntdll, ZwWaitForAlertByThreadId + 12
+	ntdll, RtlDllShutdownInProgress + 445
+	ntdll, RtlDllShutdownInProgress + 182
+	ntdll, RtlEnterCriticalSection + 378
+	ntdll, RtlEnterCriticalSection + 73
+	FOnlineServer, BufferManager::Lock + 10, buffermanager.cpp (71)
+	FOnlineServer, FOServer::NetIO_Input + 43, server.cpp (1299)
+	FOnlineServer, FOServer::NetIO_Work + 207, server.cpp (1268)
+	FOnlineServer, ThreadBeginExecution + 44, common.cpp (1546)
+	FOnlineServer, ptw32_threadStart + 119, ptw32_threadstart.c (225)
+	FOnlineServer, _callthreadstartex + 27, threadex.c (314)
+	FOnlineServer, _threadstartex + 100, threadex.c (292)
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'NetWork4' (14640)
+	ntdll, ZwRemoveIoCompletion + 12
+	FOnlineServer, FOServer::NetIO_Work + 33, server.cpp (1250)
+	FOnlineServer, ThreadBeginExecution + 44, common.cpp (1546)
+	FOnlineServer, ptw32_threadStart + 119, ptw32_threadstart.c (225)
+	FOnlineServer, _callthreadstartex + 27, threadex.c (314)
+	FOnlineServer, _threadstartex + 100, threadex.c (292)
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'NetWork5' (12344)
+	ntdll, ZwRemoveIoCompletion + 12
+	FOnlineServer, FOServer::NetIO_Work + 33, server.cpp (1250)
+	FOnlineServer, ThreadBeginExecution + 44, common.cpp (1546)
+	FOnlineServer, ptw32_threadStart + 119, ptw32_threadstart.c (225)
+	FOnlineServer, _callthreadstartex + 27, threadex.c (314)
+	FOnlineServer, _threadstartex + 100, threadex.c (292)
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'NetWork6' (8308)
+	ntdll, ZwRemoveIoCompletion + 12
+	FOnlineServer, FOServer::NetIO_Work + 332, server.cpp (1250)
+	FOnlineServer, ThreadBeginExecution + 44, common.cpp (1546)
+	FOnlineServer, ptw32_threadStart + 119, ptw32_threadstart.c (225)
+	FOnlineServer, _callthreadstartex + 27, threadex.c (314)
+	FOnlineServer, _threadstartex + 100, threadex.c (292)
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'NetWork7' (6296)
+	ntdll, ZwRemoveIoCompletion + 12
+	FOnlineServer, FOServer::NetIO_Work + 33, server.cpp (1250)
+	FOnlineServer, ThreadBeginExecution + 44, common.cpp (1546)
+	FOnlineServer, ptw32_threadStart + 119, ptw32_threadstart.c (225)
+	FOnlineServer, _callthreadstartex + 27, threadex.c (314)
+	FOnlineServer, _threadstartex + 100, threadex.c (292)
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'WorldSaveManager' (7728)
+	ntdll, NtWaitForSingleObject + 12
+	KERNELBASE, WaitForSingleObject + 18
+	FOnlineServer, FOServer::Dump_Work + 46, server.cpp (4744)
+	FOnlineServer, ThreadBeginExecution + 44, common.cpp (1546)
+	FOnlineServer, ptw32_threadStart + 119, ptw32_threadstart.c (225)
+	FOnlineServer, _callthreadstartex + 27, threadex.c (314)
+	FOnlineServer, _threadstartex + 100, threadex.c (292)
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'Unknown' (5208)
+	ntdll, ZwWaitForWorkViaWorkerFactory + 12
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'Unknown' (1836)
+	ntdll, ZwWaitForWorkViaWorkerFactory + 12
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Loaded modules
+	E:\Games\Fonline\MyFonline\Server\FOnlineServer.exe (00400000)
+	C:\WINDOWS\SYSTEM32\ntdll.dll (77C60000)
+	C:\WINDOWS\System32\KERNEL32.DLL (771A0000)
+	C:\WINDOWS\System32\KERNELBASE.dll (76440000)
+	C:\WINDOWS\System32\USER32.dll (76120000)
+	C:\WINDOWS\System32\win32u.dll (75EB0000)
+	C:\WINDOWS\System32\GDI32.dll (77840000)
+	C:\WINDOWS\System32\gdi32full.dll (768D0000)
+	C:\WINDOWS\System32\msvcp_win.dll (76A30000)
+	C:\WINDOWS\System32\ucrtbase.dll (75B90000)
+	C:\WINDOWS\System32\ADVAPI32.dll (77060000)
+	C:\WINDOWS\System32\msvcrt.dll (74770000)
+	C:\WINDOWS\System32\sechost.dll (76820000)
+	C:\WINDOWS\System32\RPCRT4.dll (77A90000)
+	C:\WINDOWS\System32\SspiCli.dll (74680000)
+	C:\WINDOWS\System32\CRYPTBASE.dll (74670000)
+	C:\WINDOWS\System32\bcryptPrimitives.dll (770F0000)
+	C:\WINDOWS\System32\WS2_32.dll (746A0000)
+	C:\WINDOWS\System32\PSAPI.DLL (77190000)
+	C:\WINDOWS\System32\SHELL32.dll (74850000)
+	C:\WINDOWS\SYSTEM32\WINMM.dll (72D30000)
+	C:\WINDOWS\SYSTEM32\dbghelp.dll (73D50000)
+	C:\WINDOWS\WinSxS\x86_microsoft.windows.common-controls_6595b64144ccf1df_5.82.16299.125_none_d02560fb5f387566\COMCTL32.dll (5D160000)
+	C:\WINDOWS\System32\cfgmgr32.dll (77150000)
+	C:\WINDOWS\System32\shcore.dll (75E20000)
+	C:\WINDOWS\SYSTEM32\WINMMBASE.dll (72400000)
+	C:\WINDOWS\System32\combase.dll (75ED0000)
+	C:\WINDOWS\System32\windows.storage.dll (77270000)
+	C:\WINDOWS\System32\shlwapi.dll (75D60000)
+	C:\WINDOWS\System32\kernel.appcore.dll (76C20000)
+	C:\WINDOWS\System32\powrprof.dll (75DB0000)
+	C:\WINDOWS\System32\profapi.dll (74830000)
+	C:\WINDOWS\System32\ole32.dll (77B50000)
+	C:\WINDOWS\SYSTEM32\dbgcore.DLL (73D20000)
+	C:\WINDOWS\System32\IMM32.DLL (76410000)
+	C:\WINDOWS\system32\uxtheme.dll (72430000)
+	C:\WINDOWS\System32\MSCTF.dll (766D0000)
+	C:\WINDOWS\System32\OLEAUT32.dll (76630000)
+	c:\program files (x86)\nvidia corporation\nvstreamsrv\nvinject.dll (6F490000)
+	C:\WINDOWS\system32\dwmapi.dll (724B0000)
+	C:\WINDOWS\System32\TextInputFramework.dll (6CB10000)
+	C:\WINDOWS\System32\CoreUIComponents.dll (6EA20000)
+	C:\WINDOWS\System32\CoreMessaging.dll (6F3E0000)
+	C:\WINDOWS\SYSTEM32\ntmarta.dll (72E30000)
+	C:\WINDOWS\SYSTEM32\wintypes.dll (6E950000)
+	C:\WINDOWS\System32\clbcatq.dll (76AB0000)
+	C:\WINDOWS\system32\dataexchange.dll (6EC60000)
+	C:\WINDOWS\system32\d3d11.dll (6D060000)
+	C:\WINDOWS\system32\dcomp.dll (6D2A0000)
+	C:\WINDOWS\system32\dxgi.dll (711B0000)
+	C:\WINDOWS\system32\twinapi.appcore.dll (6CF20000)
+	C:\WINDOWS\system32\RMCLIENT.dll (6F470000)
+	C:\WINDOWS\system32\bcrypt.dll (73C60000)
+	C:\WINDOWS\system32\msimtf.dll (5D2E0000)
+	E:\Games\Fonline\MyFonline\Server\scripts\fonline_tla.dll (5D2D0000)
+	E:\Games\Fonline\MyFonline\Server\scripts\fonline_test.dll (5D140000)
+	C:\WINDOWS\system32\mswsock.dll (73CC0000)
+
+AngelScript
+	0) parameters : int getParam_Perception(Critter&inout cr, uint) : 15794, 1
+

@@ -1,0 +1,10 @@
+fps=0
+count=3
+
+offs_x=-20
+offs_y=-28
+
+[dir_0]
+frm_0=FO2WALLOCK1_1.png
+frm_1=FO2WALLOCK1_2.png
+frm_2=FO2WALLOCK1_3.png

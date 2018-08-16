@@ -1,0 +1,531 @@
+#include "_client_defines.fos"
+#include "_msgstr.fos"
+#include "gui_h.fos"
+#include "throwing.fos"
+
+import void TryExit() from "gui_screens";
+import void NextCursor() from "gui_screens";
+
+bool[] KeyPressed;
+bool[] MousePressed;
+
+// Export
+bool IsKeyPressed( int key )      { return KeyPressed[ key ]; }
+bool IsMousePressed( int button ) { return MousePressed[ button ]; }
+bool IsCtrlDown()                 { return KeyPressed[ DIK_RCONTROL ] || KeyPressed[ DIK_LCONTROL ]; }
+bool IsAltDown()                  { return KeyPressed[ DIK_LMENU ] || KeyPressed[ DIK_RMENU ]; }
+bool IsShiftDown()                { return KeyPressed[ DIK_LSHIFT ] || KeyPressed[ DIK_RSHIFT ]; }
+
+bool[] @ GetKeyPressed()
+{
+    return KeyPressed;
+}
+bool[] @ GetMousePressed()
+{
+    return MousePressed;
+}
+
+class ScriptInitializer
+{
+    ScriptInitializer()
+    {
+        KeyPressed.resize( 0x100 );
+        MousePressed.resize( MOUSE_BUTTON_EXT4 + 1 );
+    }
+}
+ScriptInitializer _ScriptInitializer;
+
+import uint GetActiveItemAttackDistantion( CritterCl& cr ) from "parameters";
+
+// //////////////////////////////////////////////////////////////////////////////////////////////////
+// Mouse behaviours. Button states look in _client_defines.fos, Mouse buttons.
+// Return true to disable engine events.
+void mouse_down( int button ) // Engine callback
+{
+	int cursor = GetCurrentCursor();
+
+    if( cursor == CURSOR_USE_WEAPON && button == MOUSE_BUTTON_LEFT)
+    {
+		if(validateAttack()){
+			return; // Skip Processing
+		}
+    }
+
+	if(ThrowingMouseDown(button)){
+		return;
+	}
+    MousePressed[ button ] = true;
+    GUI_EngineCallback_MouseDown( button );
+}
+
+bool validateAttack()
+{
+    CritterCl@ chosen = GetChosen();
+    if( chosen is null || chosen.IsBusy() || chosen.IsKnockout() )
+        return false;
+    
+    CritterCl@ cr = GetMonitorCritter( __MouseX, __MouseY, false );
+    if( cr is null )
+        return false;
+
+	ItemCl@    realWeapon = _CritGetItemHand( chosen );
+
+	if(!valid(realWeapon) || _WeaponRound( realWeapon.Proto, 0 ) == 0 ){
+		return false;
+	}
+	
+	if( cr is chosen)
+	{
+		RunServerScriptUnsafe("rp_ammo@unsafe_commitSuicide", 0, 0, 0, null, null);
+		return true;
+	}
+	
+    uint attackDist = GetActiveItemAttackDistantion( chosen );
+
+    bool trace = false;
+    CritterCl@[] critters;
+    GetCrittersPath( chosen.HexX, chosen.HexY, cr.HexX, cr.HexY, 0.0f, attackDist, FIND_ALL, critters );
+    for( uint i = 0; i < critters.length(); i++ )
+    {
+        if( critters[ i ].Id == cr.Id )
+        {
+            trace = true;
+            break;
+        }
+    }
+	
+    if( !trace )
+        return false;
+    
+	if(realWeapon.AmmoCount == 0){
+		RunServerScriptUnsafe("rp_utils@unsafe_WeaponClick", cr.Id, realWeapon.GetProtoId(), 0, null, null);
+		return true;
+	}
+	
+	return false;
+}
+
+void mouse_up( int button ) // Engine callback
+{
+    MousePressed[ button ] = false;
+
+    GUI_EngineCallback_MouseUp( button );
+}
+
+void mouse_move() // Engine callback
+{
+    GUI_EngineCallback_MouseMove();
+}
+
+// //////////////////////////////////////////////////////////////////////////////////////////////////
+// Keyboard behaviours. Key codes look in _client_defines.fos DirectInput keyboard scan codes.
+// Return true to disable engine events.
+void key_down( uint8 key, string@ text ) // Engine callback
+{
+    // Avoid repeating
+    if( KeyPressed[ key ] )
+    {
+        if( key != DIK_TEXT && key != DIK_SPACE && key != DIK_BACK && key != DIK_DELETE && key != DIK_LEFT && key != DIK_RIGHT )
+            return;
+    }
+    KeyPressed[ key ] = true;
+	ThrowingKeyDown(key);
+    // Hotkeys handler
+    bool isHotkey = HandleHotkeys( key );
+
+    // GUI handler
+    if( !isHotkey )
+        GUI_EngineCallback_KeyDown( key, text );
+
+	
+    // Pressed keys
+    if( key != DIK_TEXT )
+        HandlePressedKeys();
+}
+
+void key_up( uint8 key ) // Engine callback
+{
+    // Avoid repeating
+    if( !KeyPressed[ key ] )
+        return;
+		
+    KeyPressed[ key ] = false;
+	ThrowingKeyUp(key);
+    // GUI handler
+    GUI_EngineCallback_KeyUp( key );
+
+    // Pressed keys
+    if( key != DIK_TEXT )
+        HandlePressedKeys();
+}
+
+// //////////////////////////////////////////////////////////////////////////////////////////////////
+// Called on mouse/keyboard input lost (alt-tab, minimize, lost focus).
+void input_lost() // Engine callback
+{
+    // Reset states
+    for( uint i = 0, j = KeyPressed.length(); i < j; i++ )
+        KeyPressed[ i ] = false;
+    for( uint i = 0, j = MousePressed.length(); i < j; i++ )
+        MousePressed[ i ] = false;
+	ThrowingInputLost();
+    // GUI handler
+    GUI_EngineCallback_InputLost();
+
+    // Pressed keys
+    HandlePressedKeys();
+}
+
+// Hotkeys handler
+bool HandleHotkeys( uint8 key )
+{
+    // Effect example, temporary
+    if( IsAltDown() && key == DIK_Q )
+        SetEffect( EFFECT_FLUSH_MAP, 0, null );
+    if( IsAltDown() && key == DIK_W )
+        SetEffect( EFFECT_FLUSH_MAP, 0, "Flush_Map_BlackWhite.glsl" );
+
+	if(  GUI_GetActiveMainScreen().Index == CLIENT_MAIN_SCREEN_GAME  )
+    {
+        if( key == DIK_H && GetCurrentCursor() == CURSOR_DEFAULT && !__ConsoleActive )
+        {
+            CritterCl @cr = GetMonitorCritter( __MouseX, __MouseY );
+            ItemCl    @it = GetMonitorItem( __MouseX, __MouseY );
+            if( @cr != null )
+                RunServerScriptUnsafe( "rp_utils@unsafe_itemhit", 0, 0, cr.Id, null, null );
+            else if( @it != null )
+                RunServerScriptUnsafe( "rp_utils@unsafe_itemhit", it.HexX, it.HexY, 0, null, null );
+            ChangeCursor( CURSOR_DEFAULT );
+            return true;
+        }
+    }
+		
+    // Hotkeys
+    bool isHotkey = true;
+    bool inputFocused = ( cast< GUITextInput >( GUI_GetFocusedObject() ) !is null || __ConsoleActive || GUI_IsConsoleActive() );
+    if( !IsCtrlDown() && !IsAltDown() && !IsShiftDown() )
+    {
+        switch( key )
+        {
+        case DIK_F1:
+            __HelpInfo = !__HelpInfo;
+            break;
+
+        case DIK_F2:
+            if( CustomCall( "SaveLogFile" ) == "OK" )
+                Message( MSG_GAME( STR_LOG_SAVED ) );
+            else
+                Message( MSG_GAME( STR_LOG_NOT_SAVED ) );
+            break;
+        case DIK_F3:
+            if( CustomCall( "SaveScreenshot" ) == "OK" )
+                Message( MSG_GAME( STR_SCREENSHOT_SAVED ) );
+            else
+                Message( MSG_GAME( STR_SCREENSHOT_NOT_SAVED ) );
+            break;
+
+        case DIK_F4:
+            if( GUI_GetScreen( CLIENT_MAIN_SCREEN_GAME ).IsHardcoded )
+                CustomCall( "SwitchIntVisible" );
+            break;
+        case DIK_F5:
+            if( GUI_GetScreen( CLIENT_MAIN_SCREEN_GAME ).IsHardcoded )
+                CustomCall( "SwitchIntAddMess" );
+            break;
+
+        case DIK_F6:
+            __ShowPlayerNames = !__ShowPlayerNames;
+            break;
+        case DIK_F7:
+            if( __DebugInfo )
+                __ShowNpcNames = !__ShowNpcNames;
+            break;
+
+        case DIK_F8:
+            __MouseScroll = !__MouseScroll;
+            __ScrollMouseRight = false;
+            __ScrollMouseLeft = false;
+            __ScrollMouseDown = false;
+            __ScrollMouseUp = false;
+            break;
+
+        case DIK_F9:
+            if( __DebugInfo )
+                CustomCall( "SwitchShowTrack" );
+            break;
+        case DIK_F10:
+            if( __DebugInfo )
+                CustomCall( "SwitchShowHex" );
+            break;
+
+        // Fullscreen
+        case DIK_F11:
+            CustomCall( "SwitchFullscreen" );
+            break;
+        // Minimize
+        case DIK_F12:
+            CustomCall( "MinimizeWindow" );
+            break;
+
+        // Mouse wheel emulate
+        case DIK_PRIOR:
+            MouseClick( __MouseX, __MouseY, MOUSE_BUTTON_WHEEL_UP, -1 );
+            break;
+        case DIK_NEXT:
+            MouseClick( __MouseX, __MouseY, MOUSE_BUTTON_WHEEL_DOWN, -1 );
+            break;
+
+        // Text input switching
+        case DIK_TAB:
+            GUI_NextTextInput();
+            break;
+
+        // Exit
+        case DIK_ESCAPE:
+            TryExit();
+            break;
+
+        default:
+            break;
+        }
+
+        if( !inputFocused )
+        {
+            GUIScreen@ screen = GUI_GetActiveScreen();
+
+            // Open screen
+			if( key == DIK_R && ( screen.Index == CLIENT_MAIN_SCREEN_GAME || screen.Index == CLIENT_MAIN_SCREEN_GLOBAL_MAP ) && GetChosen().Param[CR_IN_GAME] == 0){
+				ShowScreen( CLIENT_SCREEN_ROLES );
+			
+			}else if( key == DIK_C && ( screen.Index == CLIENT_MAIN_SCREEN_GAME || screen.Index == CLIENT_MAIN_SCREEN_GLOBAL_MAP ) )
+            {
+                ShowScreen( CLIENT_SCREEN_RP_CHAR );
+				CritterCl@ chosen = GetChosen();
+
+                if( chosen !is null && chosen.ParamBase[ ST_UNSPENT_PERKS ] > 0 )
+                    ShowScreen( CLIENT_SCREEN_PERK );
+            }
+            else if( key == DIK_I && ( screen.Index == CLIENT_MAIN_SCREEN_GAME || screen.Index == CLIENT_MAIN_SCREEN_GLOBAL_MAP ) )
+                ShowScreen( CLIENT_SCREEN_INVENTORY );
+            else if( key == DIK_P && ( screen.Index == CLIENT_MAIN_SCREEN_GAME || screen.Index == CLIENT_MAIN_SCREEN_GLOBAL_MAP ) )
+                ShowScreen( CLIENT_SCREEN_PIP_BOY );
+            else if( key == DIK_F && ( screen.Index == CLIENT_MAIN_SCREEN_GAME || screen.Index == CLIENT_MAIN_SCREEN_GLOBAL_MAP ) )
+                ShowScreen( CLIENT_SCREEN_FIX_BOY );
+            else if( key == DIK_O && ( screen.Index == CLIENT_MAIN_SCREEN_GAME || screen.Index == CLIENT_MAIN_SCREEN_GLOBAL_MAP ) )
+                ShowScreen( CLIENT_SCREEN_MENU );
+            else if( key == DIK_S && screen.Index == CLIENT_MAIN_SCREEN_GAME )
+                ShowScreen( CLIENT_SCREEN_SKILLBOX );
+            else if( key == DIK_TAB && screen.Index == CLIENT_MAIN_SCREEN_GAME )
+                ShowScreen( CLIENT_SCREEN_MINIMAP );
+            // Close opened screen
+            else if( ( key == DIK_C && screen.Index == CLIENT_SCREEN_RP_CHAR ) ||
+                     ( key == DIK_I && screen.Index == CLIENT_SCREEN_INVENTORY ) ||
+                     ( key == DIK_P && screen.Index == CLIENT_SCREEN_PIP_BOY ) ||
+                     ( key == DIK_F && screen.Index == CLIENT_SCREEN_FIX_BOY ) ||
+                     ( key == DIK_O && screen.Index == CLIENT_SCREEN_MENU ) ||
+                     ( key == DIK_S && screen.Index == CLIENT_SCREEN_SKILLBOX ) ||
+                     ( key == DIK_TAB && screen.Index == CLIENT_SCREEN_RP_CHAR ) ||
+					 ( key == DIK_R && screen.Index == CLIENT_SCREEN_ROLES )
+					 )
+            {
+                TryExit();
+            }
+            // Other
+            else if( key == DIK_SPACE && __Singleplayer )
+            {
+                CustomCall( "SwitchSingleplayerPause" );
+            }
+            // Main game screen hotkeys
+            else if( screen.Index == CLIENT_MAIN_SCREEN_GAME )
+            {
+                isHotkey = true;
+				
+                switch( key )
+                {
+				case DIK_SPACE:
+					RunServerScriptUnsafe("rp_utils@unsafe_toggleCombat", 0,0,0, null, null);
+					break;
+					
+                case DIK_Q:
+                    CustomCall( "SwitchLookBorders" );
+                    break;
+                case DIK_W:
+                    CustomCall( "SwitchShootBorders" );
+                    break;
+
+                case DIK_A:
+                {
+                    CritterCl@ chosen = GetChosen();
+                    uint8      mode = 0;
+                    if( chosen !is null && chosen.GetSlotProto( SLOT_HAND1, mode ).Type == ITEM_TYPE_WEAPON && ( mode & 0xF ) < MAX_USES )
+                        ChangeCursor( CURSOR_USE_WEAPON );
+                    else
+                        isHotkey = false;
+                }
+                break;
+
+                case DIK_G:
+                    CustomCall( "TryPickItemOnGround" );
+                    break;
+
+                case DIK_T:
+                    __ShowGroups = !__ShowGroups;
+                    break;
+
+                case DIK_B:
+                    CustomCall( "ChangeSlot" );
+                    break;
+                case DIK_M:
+                    NextCursor();
+                    break;
+                case DIK_N:
+                    CustomCall( "NextItemMode" );
+                    break;
+
+                case DIK_SLASH:
+                {
+                    string str = "Time: ";
+                    str += ( __Day < 10 ? "0" : "" ) + __Day + ".";
+                    str += ( __Month < 10 ? "0" : "" ) + __Month + ".";
+                    str += __Year + " ";
+                    str += ( __Hour < 10 ? "0" : "" ) + __Hour + ":";
+                    str += ( __Minute < 10 ? "0" : "" ) + __Minute + ":";
+                    str += ( __Second < 10 ? "0" : "" ) + __Second;
+                    str += " x" + __TimeMultiplier;
+                    Message( str, FOMB_GAME );
+                }
+                break;
+
+                case DIK_COMMA:
+                    SetChosenActions( array< uint > = { CHOSEN_DIR, 1 /* CW */, 0, 0, 0, 0, 0 } );
+                    break;
+                case DIK_PERIOD:
+                    SetChosenActions( array< uint > = { CHOSEN_DIR, 0 /* CCW */, 0, 0, 0, 0, 0 } );
+                    break;
+
+                case DIK_HOME:
+                {
+                    CritterCl@ chosen = GetChosen();
+                    if( chosen !is null )
+                        MoveScreen( chosen.HexX, chosen.HexY, 100, true );
+                }
+                break;
+                case DIK_SCROLL:
+                {
+                    CritterCl@ chosen = GetChosen();
+                    if( chosen !is null )
+                        LockScreenScroll( chosen, true );
+                }
+                break;
+
+                // Skills
+                case DIK_1:
+                    SetChosenActions( array< uint > = { CHOSEN_USE_SKL_ON_CRITTER, SK_SNEAK, 0, 0, 0, 0, 0 } );
+                    break;
+                case DIK_2:
+                    ChangeCursor( CURSOR_USE_SKILL, SK_LOCKPICK );
+                    break;
+                case DIK_3:
+                    ChangeCursor( CURSOR_USE_SKILL, SK_STEAL );
+                    break;
+                case DIK_4:
+                    ChangeCursor( CURSOR_USE_SKILL, SK_TRAPS );
+                    break;
+                case DIK_5:
+                    ChangeCursor( CURSOR_USE_SKILL, SK_FIRST_AID );
+                    break;
+                case DIK_6:
+                    ChangeCursor( CURSOR_USE_SKILL, SK_DOCTOR );
+                    break;
+                case DIK_7:
+                    ChangeCursor( CURSOR_USE_SKILL, SK_SCIENCE );
+                    break;
+                case DIK_8:
+                    ChangeCursor( CURSOR_USE_SKILL, SK_REPAIR );
+                    break;
+
+                // Not an hotkey
+                default:
+                    isHotkey = false;
+                    break;
+                }
+            }
+            else
+            {
+                isHotkey = false;
+            }
+        }
+        else
+        {
+            isHotkey = false;
+        }
+    }
+    else
+    {
+        switch( key )
+        {
+        case DIK_F6:
+            if( __DebugInfo && IsCtrlDown() )
+                __ShowCritId = !__ShowCritId;
+            break;
+        case DIK_F7:
+            if( __DebugInfo && IsCtrlDown() )
+                __ShowCritId = !__ShowCritId;
+            break;
+        case DIK_F10:
+            if( IsShiftDown() )
+                CustomCall( "DumpAtlases" );
+            break;
+
+        // Num Pad
+        case DIK_EQUALS:
+        case DIK_ADD:
+            if( !inputFocused )
+            {
+                if( IsCtrlDown() )
+                    __SoundVolume = CLAMP( __SoundVolume + 2, 0, 100 );
+                else if( IsShiftDown() )
+                    __MusicVolume = CLAMP( __MusicVolume + 2, 0, 100 );
+                else if( IsAltDown() && __FixedFPS < 10000 )
+                    __FixedFPS++;
+            }
+            break;
+        case DIK_MINUS:
+        case DIK_SUBTRACT:
+            if( !inputFocused )
+            {
+                if( IsCtrlDown() )
+                    __SoundVolume = CLAMP( __SoundVolume - 2, 0, 100 );
+                else if( IsShiftDown() )
+                    __MusicVolume = CLAMP( __MusicVolume - 2, 0, 100 );
+                else if( IsAltDown() && __FixedFPS > -10000 )
+                    __FixedFPS--;
+            }
+            break;
+        // Exit
+        case DIK_ESCAPE:
+            if( IsShiftDown() )
+                __Quit = true;
+            break;
+
+        default:
+            isHotkey = false;
+            break;
+        }
+
+        if( key == DIK_RCONTROL || key == DIK_LCONTROL || key == DIK_RCONTROL || key == DIK_LCONTROL )
+            CustomCall( "SetCursorPos" );
+    }
+    return isHotkey;
+}
+
+// Pressed keys handler
+void HandlePressedKeys()
+{
+    bool isGameWithoutConsole = ( GUI_GetActiveScreen().Index == CLIENT_MAIN_SCREEN_GAME && !__ConsoleActive && !GUI_IsConsoleActive() );
+    __MapZooming = ( isGameWithoutConsole && KeyPressed[ DIK_Z ] );
+    __ScrollKeybLeft = ( isGameWithoutConsole && KeyPressed[ DIK_LEFT ] );
+    __ScrollKeybRight = ( isGameWithoutConsole && KeyPressed[ DIK_RIGHT ] );
+    __ScrollKeybUp = ( isGameWithoutConsole && KeyPressed[ DIK_UP ] );
+    __ScrollKeybDown = ( isGameWithoutConsole && KeyPressed[ DIK_DOWN ] );
+}

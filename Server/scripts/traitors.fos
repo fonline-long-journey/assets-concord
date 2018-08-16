@@ -1,0 +1,63 @@
+#include "_macros.fos"
+#include "_colors.fos"
+
+void unsafe_rememberTargets(Critter& player, int id, int param1, int param2, string@ lexems, int[]@ param4){
+	notifyTraitor(player);
+}
+
+void notifyTraitor(Critter@ cr){
+	int targetId = 0;
+	int targetItemPid = 0;
+	bool isProtect = false;
+	
+	if(cr.Param[CR_IS_TRAITOR] == 0){
+		cr.Say(SAY_NETMSG, "У вас нет каких-то особенных целей.");
+		return;
+	}
+	
+	if(cr.Param[CR_TARGET_CHAR_ID] > 0)
+	{
+		targetId = cr.Param[CR_TARGET_CHAR_ID];
+	}else 
+	if(cr.Param[CR_TARGET_PROTECT_CHAR_ID] > 0)
+	{
+		targetId = cr.Param[CR_TARGET_PROTECT_CHAR_ID];
+		isProtect = true;
+	}
+	else 
+	if(cr.Param[CR_TARGET_ITEM_PID] > 0)
+	{
+		targetItemPid = cr.Param[CR_TARGET_ITEM_PID];
+	}
+	
+	string@ result = "Свои у тебя интересы, или ты работаешь на кого-то, но твоей главной целью сегодня станет: ";
+	Critter@ target = GetCritter(targetId);
+		
+	if(targetId > 0 && !isProtect){
+		result += "\nУбить человека по имени " + GetPlayerName(target.Id) + " и сбежать на поезде.";
+	}else if(targetItemPid > 0){
+		result += "\nТебе нужно украсть " + getTargetItemName(targetItemPid) + " и покинуть окрестности на поезде.";
+	}else if(targetId > 0 && isProtect){
+		result += "\nЧеловек по имени " + GetPlayerName(target.Id) + " не должен погибнуть сегодня, его нужно вывезти за пределы города живым любой ценой.";
+	}
+	
+	result += "\n" + "|" + COLOR_RED + " ТЫ - ПРЕДАТЕЛЬ";
+	
+	cr.Say(SAY_NETMSG, result);
+}
+
+string getTargetItemName(uint pid){
+	switch(pid){
+		case PID_223_SAWED_OFF:
+			return "Револьвер шерифа";
+			
+		case PID_BRIEFCASE:
+			return "Чемоданчик";
+			
+		case PID_THOMMY_GUN:
+			return "Томмиган";
+		default:
+			return "Что-то!";
+	}
+	return "ERROR";
+}

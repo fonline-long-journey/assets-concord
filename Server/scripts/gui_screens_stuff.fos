@@ -1,0 +1,76 @@
+﻿#include "_client_defines.fos"
+#include "_colors.fos"
+#include "_msgstr.fos"
+#include "gui_h.fos"
+
+void TryExit()
+{
+    GUIScreen@ screen = GUI_GetActiveScreen();
+    if( screen.IsHardcoded )
+    {
+        CustomCall( "TryExit" );
+        return;
+    }
+
+    switch( screen.Index )
+    {
+    case CLIENT_SCREEN_NONE:
+        break;
+
+    case CLIENT_MAIN_SCREEN_LOGIN:
+        __Quit = true;
+        break;
+    case CLIENT_MAIN_SCREEN_REGISTRATION:
+    case CLIENT_MAIN_SCREEN_CREDITS:
+    case CLIENT_MAIN_SCREEN_OPTIONS:
+        ShowScreen( CLIENT_MAIN_SCREEN_LOGIN );
+        break;
+    case CLIENT_MAIN_SCREEN_WAIT:
+        CustomCall( "NetDisconnect" );
+        break;
+    case CLIENT_MAIN_SCREEN_GLOBAL_MAP:
+    case CLIENT_MAIN_SCREEN_GAME:
+        if( GetCurrentCursor() == CURSOR_USE_ITEM || GetCurrentCursor() == CURSOR_USE_WEAPON || GetCurrentCursor() == CURSOR_USE_SKILL )
+            ChangeCursor( CURSOR_DEFAULT );
+        else
+            ShowScreen( CLIENT_SCREEN_MENU );
+        break;
+
+    default:
+        if( !screen.IsMain )
+            HideScreen( screen.Index );
+        break;
+    }
+}
+
+void NextCursor()
+{
+    switch( GetCurrentCursor() )
+    {
+    case CURSOR_DEFAULT:
+        ChangeCursor( CURSOR_MOVE );
+        break;
+    case CURSOR_MOVE:
+    {
+        CritterCl@ chosen = GetChosen();
+        uint8      mode = 0;
+        if( chosen !is null && chosen.Param[ TO_BATTLE ] > 0 && chosen.GetSlotProto( SLOT_HAND1, mode ).Type == ITEM_TYPE_WEAPON )
+            ChangeCursor( CURSOR_USE_WEAPON );
+        else
+            ChangeCursor( CURSOR_DEFAULT );
+    }
+    break;
+    case CURSOR_USE_ITEM:
+        ChangeCursor( CURSOR_DEFAULT );
+        break;
+    case CURSOR_USE_WEAPON:
+        ChangeCursor( CURSOR_DEFAULT );
+        break;
+    case CURSOR_USE_SKILL:
+        ChangeCursor( CURSOR_MOVE );
+        break;
+    default:
+        ChangeCursor( CURSOR_DEFAULT );
+        break;
+    }
+}

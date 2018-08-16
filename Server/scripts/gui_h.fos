@@ -1,0 +1,2387 @@
+#ifndef __CLIENT_GUI__
+#define __CLIENT_GUI__
+
+#include "_defines.fos"
+#include "_client_defines.fos"
+#include "_colors.fos"
+#include "_msgstr.fos"
+#include "_math.fos"
+#include "sprite.fos"
+#include "serializator.fos"
+
+funcdef bool DragAndDropHandler( GUIObject& obj, GUIObject@ target );
+bool __PressedGrave;
+
+#ifndef CLIENT_GUI
+// Public API
+import void       GUI_RegisterScreen( int screenIndex, GUIScreen& screen ) from "gui";
+import GUIScreen@ GUI_GetScreen( int screenIndex ) from "gui";
+import GUIScreen@ GUI_GetActiveMainScreen() from "gui";
+import GUIScreen@ GUI_GetActiveScreen() from "gui";
+import void       GUI_GetActiveScreens( GUIScreen@[]& result ) from "gui";
+import GUIObject@ GUI_GetFocusedObject() from "gui";
+import void       GUI_SetFocusedObject( GUIObject@ obj ) from "gui";
+import GUIObject@ GUI_GetPressedObject() from "gui";
+import GUIObject@ GUI_GetDraggedObject() from "gui";
+import GUIObject@ GUI_GetHoveredObject() from "gui";
+import void       GUI_NextTextInput() from "gui";
+import void       GUI_CollectMessageBoxes( GUIMessageBox@[]& messageBoxes ) from "gui";
+import bool       GUI_IsConsoleActive() from "gui";
+import void       GUI_AddDragAndDropHandler( DragAndDropHandler@ handler ) from "gui";
+
+// GUI core callbacks
+import void GUI_EngineCallback_Start() from "gui";
+import void GUI_EngineCallback_ShowScreen( int screenIndex, dictionary@ params ) from "gui";
+import void GUI_EngineCallback_HideScreen( int screenIndex ) from "gui";
+import void GUI_EngineCallback_Draw( bool mainScreen ) from "gui";
+import void GUI_EngineCallback_DrawCursor() from "gui";
+import void GUI_EngineCallback_MouseDown( int button ) from "gui";
+import void GUI_EngineCallback_MouseUp( int button ) from "gui";
+import void GUI_EngineCallback_MouseMove() from "gui";
+import void GUI_EngineCallback_KeyDown( uint8 key, string@ text ) from "gui";
+import void GUI_EngineCallback_KeyUp( uint8 key ) from "gui";
+import void GUI_EngineCallback_InputLost() from "gui";
+import void GUI_EngineCallback_Loop() from "gui";
+import void GUI_EngineCallback_GetActiveScreens( int[]& result ) from "gui";
+import void GUI_EngineCallback_ItemChanged( bool onMap ) from "gui";
+import bool GUI_EngineCallback_CheckInterfaceHit( int x, int y ) from "gui";
+import void GUI_Callback_OnResolutionChanged() from "gui";
+import void GUI_Callback_OnLanguageChanged() from "gui";
+
+// Inheritance
+// GUIObject
+//   GUIPanel
+//     GUIScreen
+//     GUIGrid
+//       GUIItemView
+//     GUIButton
+//       GUICheckBox
+//         GUIRadioButton
+//   GUIText
+//     GUITextInput
+//       GUIConsole
+//     GUIMessageBox
+
+// Callbacks
+// GUIObject
+//   void OnConstruct()
+//   void OnInit()
+//   void OnShow()
+//   void OnShow( dictionary@ params )
+//   void OnHide()
+//   void OnAppear()
+//   void OnAppear( dictionary@ params )
+//   void OnDisappear()
+//   void OnDraw()
+//   void OnMove( int deltaX, int deltaY )
+//   void OnMouseDown( int button )
+//   void OnMouseUp( int button, bool lost )
+//   void OnMousePressed( int button )
+//   void OnLMousePressed()
+//   void OnRMousePressed()
+//   void OnMouseClick( int button )
+//   void OnLMouseClick()
+//   void OnRMouseClick()
+//   void OnMouseMove()
+//   void OnGlobalMouseDown( int button )
+//   void OnGlobalMouseUp( int button )
+//   void OnGlobalMousePressed( int button )
+//   void OnGlobalMouseClick( int button )
+//   void OnGlobalMouseMove()
+//   void OnInput()
+//   void OnInput( uint8 key )
+//   void OnInput( string& text )
+//   void OnInput( uint8 key, string@ text )
+//   void OnGlobalInput( uint8 key, string@ text )
+//   void OnActiveChanged()
+//   void OnFocusChanged()
+//   void OnHoverChanged()
+//   void OnDragChanged()
+//   void OnResizeGrid( GUIObject@ cell, uint cellIndex )
+//   void OnDrawItem( ItemCl@ item, GUIObject@ cell, uint cellIndex )
+// GUICheckBox
+//   void OnCheckedChanged()
+// GUIItemView
+//   int OnCheckItem( ItemCl@ item ) - return slot index if UseSorting == false; sorting value if UseSorting == true; < 0 to discard item
+//   void OnScrollChanged()
+
+// API
+// GUIObject
+//   bool Active
+//   bool ActiveSelf
+//   string Name
+//   int PosX
+//   int PosY
+//   int AbsolutePosX
+//   int AbsolutePosY
+//   int Width
+//   int Height
+//   int Anchor
+//   int Dock
+//   bool IsDraggable
+//   bool IsNotHittable
+//   bool CheckTransparentOnHit
+//   bool IsFocused
+//   bool IsPressed
+//   bool IsHovered
+//   bool IsDragged
+//   uint ChildCount
+//   GUIObject@ Parent
+//   GUIScreen@ Screen
+//   GUIGrid@ Grid
+//   uint CellIndex
+//   void Init( GUIObject@ parent )
+//   void Remove()
+//   void SetActive( bool active )
+//   void SetPosition( int x, int y )
+//   void SetPosition( string& iniKey )
+//   void SetSize( int w, int h )
+//   void SetAnchor( int anchorStyles )
+//   void SetDock( int dockStyle )
+//   void SetDraggable( bool enabled )
+//   void SetNotHittable( bool enabled )
+//   void SetCheckTransparentOnHit( bool enabled )
+//   GUIObject@ FindMouseHit()
+//   GUIObject@ FindHit( int x, int y )
+//   bool IsMouseHit()
+//   bool IsHit( int x, int y )
+//   void GetWholeSize( int& centerX, int& centerY, int& wholeWidth, int& wholeHeight )
+//   void Draw( int x, int y )
+//   void Move( int deltaX, int deltaY )
+//   void MouseClick( int button )
+//   void Input( uint8 key, string& text )
+//   GUIPanel@ FindPanel( string& name )
+//   GUIText@ FindText( string& name )
+//   GUITextInput@ FindTextInput( string& name )
+//   GUIButton@ FindButton( string& name )
+//   GUIObject@ Find( string& name, bool deepFind = true )
+//   GUIObject@ GetChild( uint index )
+// GUIPanel : GUIObject
+//   Sprite@ BackgroundImage
+//   int BackgroundImageLayout
+//   void SetBackgroundImage( string@ imageName, int imageLayout = IMAGE_LAYOUT_NONE )
+//   void SetBackgroundImage( uint imageNameHash, int imageLayout = IMAGE_LAYOUT_NONE )
+//   bool IsCanMove
+//   bool IsMoveIgnoreBorders
+//   void SetCanMove( bool enabled, bool ignoreBorders )
+// GUIText : GUIObject
+//   string@ Text (overridable)
+//   int TextFont
+//   uint TextColor
+//   uint TextColorFocused
+//   int TextFlags
+//   void SetText( string@ text, int font, int flags )
+//   void SetText( string@ text )
+//   void SetTextFont( int font )
+//   void SetTextFlags( int flags )
+//   void SetTextColor( uint color )
+//   void SetTextFocusedColor( uint color )
+// GUITextInput : GUIText : GUIObject
+//   uint InputLength
+//   bool IsTextPassword
+//   string PasswordChar
+//   void SetInputLength( uint length )
+//   void SetInputPassword( string@ passwordChar )
+//   void SetCarriage( bool enable )
+// GUIButton : GUIPanel : GUIObject
+//   Sprite@ PressedImage
+//   int PressedImageLayout
+//   Sprite@ HoverImage
+//   int HoverImageLayout
+//   bool IsSwitched
+//   bool IsDisabled
+//   void SetPressedImage( string@ imageName, int imageLayout = IMAGE_LAYOUT_NONE )
+//   void SetPressedImage( uint imageNameHash, int imageLayout = IMAGE_LAYOUT_NONE )
+//   void SetHoverImage( string@ imageName, int imageLayout = IMAGE_LAYOUT_NONE )
+//   void SetHoverImage( uint imageNameHash, int imageLayout = IMAGE_LAYOUT_NONE )
+//   void SetDisabledImage( string@ imageName, int imageLayout = IMAGE_LAYOUT_NONE )
+//   void SetDisabledImage( uint imageNameHash, int imageLayout = IMAGE_LAYOUT_NONE )
+//   void SetSwitch( bool enabled )
+//   void SetCondition( bool enabled )
+// GUICheckBox : GUIButton : GUIPanel : GUIObject
+//   bool IsChecked
+//   void SetChecked( bool checked )
+// GUIRadioButton : GUICheckBox : GUIButton : GUIPanel : GUIObject
+// GUIScreen : GUIPanel : GUIObject
+//   int Index
+//   bool IsHardcoded
+//   bool IsMain
+//   bool IsModal
+//   bool IsMultiinstance
+//   bool IsCloseOnMiss
+//   int[] AvailableCursors
+//   int Cursor
+//   Todo: bool IsOnTop
+//   void SetModal( bool enabled )
+//   void SetMultiinstance( bool enabled )
+//   void SetCloseOnMiss( bool enabled )
+//   void SetAvailableCursors( int[] cursors )
+// GUIGrid : GUIPanel : GUIObject
+//   string@ CellPrototype
+//   uint GridSize
+//   int Columns
+//   GUIObject@[]@ Cells
+//   void ResizeGrid( uint size )
+//   void SetCellPrototype( string name )
+//   void SetGridSize( uint size )
+//   void SetColumns( int length )
+//   void SetPadding( int x, int y )
+// GUIMessageBox : GUIText : GUIObject
+//   string[] MessageTexts
+//   int[] MessageTypes
+//   string[] MessageTimes
+//   bool[] DisplayedMessages
+//   bool InvertMessages
+//   void AddMessage( string@ text, int type = FOMB_GAME )
+//   void SetDisplayedMessages( int[] messageTypes, bool enable )
+//   void ChangeDisplayedMessage( int messageType, bool enable )
+//   void SetInvertMessages( bool invert )
+// GUIConsole : GUITextInput : GUIText : GUIObject
+//   string HistoryStorageName
+//   string[]@ History
+//   uint HistoryMaxLength
+//   void Activate()
+//   void Deactivate()
+//   void SendText()
+//   void Toggle() // Automatically manage calls of Activate / Deactivate / SendText
+//   void SetHistoryStorage( string storageName )
+//   void SetHistoryMaxLength( uint length )
+// GUIItemView : GUIGrid : GUIPanel : GUIObject
+//   int UserData
+//   bool UseSorting
+//   uint CritterId
+//   ItemCl@[] Items
+//   ItemCl@ GetItem( uint cellIndex )
+//   void Resort()
+//   void SetUserData( int data )
+//   void SetUseSorting( bool enable )
+//   void SetScroll( int value, bool checkAvailability = false )
+//   bool CheckScrollAvailability( int value )
+//   void SetCritter( uint crId )
+#endif
+
+shared class GUIObject
+{
+    bool       get_Active() final                { return _ActiveSelf && ( _Parent !is null ? _Parent.Active : true ); }
+    bool       get_ActiveSelf() final            { return _ActiveSelf; }
+    string@    get_Name() final                  { return _Name; }
+    int        get_PosX() final                  { return _Parent !is null ? _AbsolutePosX - _Parent._AbsolutePosX : _AbsolutePosX; }
+    int        get_PosY() final                  { return _Parent !is null ? _AbsolutePosY - _Parent._AbsolutePosY : _AbsolutePosY; }
+    int        get_AbsolutePosX() final          { return _AbsolutePosX; }
+    int        get_AbsolutePosY() final          { return _AbsolutePosY; }
+    int        get_Width() final                 { return _Width; }
+    int        get_Height() final                { return _Height; }
+    int        get_Anchor() final                { return _Anchor; }
+    int        get_Dock() final                  { return _Dock; }
+    bool       get_IsDraggable() final           { return _IsDraggable; }
+    bool       get_IsNotHittable() final         { return _IsNotHittable; }
+    bool       get_CheckTransparentOnHit() final { return _CheckTransparentOnHit; }
+    bool       get_IsFocused() final             { return _IsFocused; }
+    bool       get_IsPressed() final             { return _IsPressed; }
+    bool       get_IsHovered() final             { return _IsHovered; }
+    bool       get_IsDragged() final             { return _IsDragged || ( _Parent !is null && _Parent.IsDragged ); }
+    uint       get_ChildCount() final            { return _Children.length(); }
+    GUIObject@ get_Parent() final                { return _Parent; }
+    GUIScreen@ get_Screen() final                { return _Parent !is null ? _Parent.Screen : cast< GUIScreen >( this ); }
+    GUIGrid@   get_Grid() final                  { return _Grid; }
+    uint       get_CellIndex() final             { return _CellIndex; }
+
+    bool       _ActiveSelf;
+    string@    _Name;
+    int        _BasePosX;
+    int        _BasePosY;
+    int        _BaseWidth;
+    int        _BaseHeight;
+    int        _AbsolutePosX;
+    int        _AbsolutePosY;
+    int        _Width;
+    int        _Height;
+    int        _Anchor;
+    int        _Dock;
+    bool       _IsDragged;
+    bool       _IsDraggable;
+    bool       _IsNotHittable;
+    bool       _CheckTransparentOnHit;
+    bool       _DeferredMousePressed;
+    bool       _IsFocused;
+    bool       _IsPressed;
+    bool       _IsHovered;
+    int        _PressedButton;
+    int        _PressedX;
+    int        _PressedY;
+    uint       _PressedRepeatTime;
+    GUIObject@ _Parent;
+    GUIObject@[] _Children;
+    GUIGrid@   _Grid;
+    uint       _CellIndex;
+
+    // Callbacks
+    void OnConstruct()                                               {}
+    void OnInit()                                                    {}
+    void OnShow()                                                    {}
+    void OnShow( dictionary@ params )                                {}
+    void OnHide()                                                    {}
+    void OnAppear()                                                  {}
+    void OnAppear( dictionary@ params )                              {}
+    void OnDisappear()                                               {}
+    void OnRemove()                                                  {}
+    void OnDraw()                                                    {}
+    void OnMove( int deltaX, int deltaY )                            {}
+    void OnMouseDown( int button )                                   {}
+    void OnMouseUp( int button, bool lost )                          {}
+    void OnMousePressed( int button )                                {}
+    void OnLMousePressed()                                           {}
+    void OnRMousePressed()                                           {}
+    void OnMouseClick( int button )                                  {}
+    void OnLMouseClick()                                             {}
+    void OnRMouseClick()                                             {}
+    void OnMouseMove()                                               {}
+    void OnGlobalMouseDown( int button )                             {}
+    void OnGlobalMouseUp( int button )                               {}
+    void OnGlobalMousePressed( int button )                          {}
+    void OnGlobalMouseClick( int button )                            {}
+    void OnGlobalMouseMove()                                         {}
+    void OnInput()                                                   {}
+    void OnInput( uint8 key )                                        {}
+    void OnInput( string& text )                                     {}
+    void OnInput( uint8 key, string@ text )                          {}
+    void OnGlobalInput( uint8 key, string@ text )                    {}
+    void OnActiveChanged()                                           {}
+    void OnFocusChanged()                                            {}
+    void OnHoverChanged()                                            {}
+    void OnDragChanged()                                             {}
+    void OnResizeGrid( GUIObject@ cell, uint cellIndex )             {}
+    void OnDrawItem( ItemCl@ item, GUIObject@ cell, uint cellIndex ) {}
+
+    void Init( GUIObject@ parent )
+    {
+        _ActiveSelf = true;
+        @_Name = reflection::typeof < GUIObject > ( this ).nameWithoutNamespace;
+
+        if( _Parent !is null )
+            _Parent._Children.removeAt( _Parent._Children.findByRef( this ) );
+        @_Parent = parent;
+        if( parent !is null )
+            parent._Children.insertLast( this );
+
+        _Construct();
+
+        GUIScreen@ screen = Screen;
+        if( screen !is null && screen._IsRegistered )
+            _Init();
+
+        _RefreshPosition();
+    }
+
+    void _Construct()
+    {
+        OnConstruct();
+    }
+
+    void _Init()
+    {
+        OnInit();
+        for( uint i = 0; i < _Children.length(); i++ )
+            _Children[ i ]._Init();
+    }
+
+    void _Show( dictionary@ params )
+    {
+        OnShow();
+        OnShow( params );
+        for( uint i = 0; i < _Children.length(); i++ )
+            _Children[ i ]._Show( params );
+    }
+
+    void _Hide()
+    {
+        OnHide();
+        for( uint i = 0; i < _Children.length(); i++ )
+            _Children[ i ]._Hide();
+    }
+
+    void _Appear( dictionary@ params )
+    {
+        OnAppear();
+        OnAppear( params );
+        for( uint i = 0; i < _Children.length(); i++ )
+            _Children[ i ]._Appear( params );
+    }
+
+    void _Disappear()
+    {
+        OnDisappear();
+        for( uint i = 0; i < _Children.length(); i++ )
+            _Children[ i ]._Disappear();
+    }
+
+    void Remove()
+    {
+        if( _Parent !is null )
+        {
+            _Parent._Children.removeAt( _Parent._Children.findByRef( this ) );
+            @_Parent = null;
+        }
+
+        _Remove();
+
+        _ActiveSelf = false;
+    }
+
+    void _Remove()
+    {
+        OnRemove();
+        for( uint i = 0; i < _Children.length(); i++ )
+            _Children[ i ]._Remove();
+    }
+
+    void _Reload( bool reconstruct, bool refreshPosition )
+    {
+        if( reconstruct )
+            OnConstruct();
+        if( refreshPosition )
+            _RefreshPosition();
+
+        for( uint i = 0; i < _Children.length(); i++ )
+            _Children[ i ]._Reload( reconstruct, refreshPosition );
+    }
+
+    void _DrawCallback()
+    {
+        // Draw item callback
+        if( _Grid !is null )
+        {
+            GUIItemView@ itemView = cast< GUIItemView >( _Grid );
+            if( itemView !is null )
+                OnDrawItem( itemView.GetItem( _CellIndex ), this, _CellIndex );
+        }
+
+        // Common draw callback
+        OnDraw();
+    }
+
+    void _Draw( bool callCallback )
+    {
+        if( callCallback )
+            _DrawCallback();
+
+        // _Children
+        for( uint i = 0; i < _Children.length(); i++ )
+        {
+            GUIObject@ child = _Children[ i ];
+            if( child._ActiveSelf && !child._IsDragged )
+                child._Draw( true );
+        }
+    }
+
+    void Draw( int x, int y )
+    {
+        int dx = x - _AbsolutePosX;
+        int dy = y - _AbsolutePosY;
+        _Move( dx, dy, false, false );
+        _Draw( true );
+        _Move( -dx, -dy, false, false );
+    }
+
+    void Move( int deltaX, int deltaY )
+    {
+        _Move( deltaX, deltaY, true, true );
+    }
+
+    void _Move( int deltaX, int deltaY, bool callCallback, bool moveBasePos )
+    {
+        _AbsolutePosX += deltaX;
+        _AbsolutePosY += deltaY;
+
+        if( moveBasePos )
+        {
+            _BasePosX += deltaX;
+            _BasePosY += deltaY;
+        }
+
+        for( uint i = 0; i < _Children.length(); i++ )
+            _Children[ i ]._Move( deltaX, deltaY, false, false );
+
+        if( callCallback )
+            _MoveCallback( deltaX, deltaY );
+    }
+
+    void _MoveCallback( int deltaX, int deltaY )
+    {
+        OnMove( deltaX, deltaY );
+        for( uint i = 0; i < _Children.length(); i++ )
+            _Children[ i ]._MoveCallback( deltaX, deltaY );
+    }
+
+    bool _IsHitch()
+    {
+        bool result = ( !_IsDraggable && cast< GUIPanel >( this ) !is null  && cast< GUIButton >( this ) is null  && cast< GUIGrid >( this ) is null );
+        return result && ( Parent !is null ? Parent._IsHitch() : true );
+    }
+
+    GUIObject@ FindMouseHit()
+    {
+        return FindHit( __MouseX, __MouseY );
+    }
+
+    GUIObject@ FindHit( int x, int y )
+    {
+        // Check children
+        for( int i = int( _Children.length() ) - 1; i >= 0; i-- )
+        {
+            GUIObject@ obj = _Children[ i ].FindHit( x, y );
+            if( obj !is null )
+                return obj;
+        }
+
+        // Check own
+        if( IsHit( x, y ) )
+            return this;
+
+        // No collision found
+        return null;
+    }
+
+    bool IsMouseHit()
+    {
+        return IsHit( __MouseX, __MouseY );
+    }
+
+    bool IsHit( int x, int y )
+    {
+        return Active && !_IsNotHittable && _Width > 0 && _Height > 0 && IS_COLLISION( x, y, _AbsolutePosX, _AbsolutePosY, _Width, _Height );
+    }
+
+    void _GetWholeSizeRect( int[]& rect )
+    {
+        int l = _AbsolutePosX;
+        int t = _AbsolutePosY;
+        int r = l + Width;
+        int b = t + Height;
+
+        if( l < rect[ 0 ] )
+            rect[ 0 ] = l;
+        if( t < rect[ 1 ] )
+            rect[ 1 ] = t;
+        if( r > rect[ 2 ] )
+            rect[ 2 ] = r;
+        if( b > rect[ 3 ] )
+            rect[ 3 ] = b;
+
+        for( uint i = 0; i < _Children.length(); i++ )
+            _Children[ i ]._GetWholeSizeRect( rect );
+    }
+
+    void GetWholeSize( int& centerX, int& centerY, int& wholeWidth, int& wholeHeight )
+    {
+        int[] rect = { 1000000000, 1000000000, -1000000000, -1000000000 };
+        _GetWholeSizeRect( rect );
+        wholeWidth = rect[ 2 ] - rect[ 0 ];
+        wholeHeight = rect[ 3 ] - rect[ 1 ];
+        centerX = rect[ 0 ] + wholeWidth / 2;
+        centerY = rect[ 1 ] + wholeHeight / 2;
+    }
+
+    void _MouseDown( int button )
+    {
+        _IsPressed = true;
+        _PressedButton = button;
+        _PressedX = __MouseX;
+        _PressedY = __MouseY;
+        OnMouseDown( button );
+
+        if( _IsDraggable && _PressedButton == MOUSE_BUTTON_LEFT )
+        {
+            bool draggableCursor = ( GetCurrentCursor() == CURSOR_HAND );
+            if( draggableCursor )
+            {
+                _IsDragged = true;
+                OnDragChanged();
+            }
+        }
+
+        if( !_DeferredMousePressed )
+        {
+            Screen._GlobalMousePressed( button );
+            _MousePressed( button );
+        }
+        _PressedRepeatTime = GetTick() + 500;
+    }
+
+    void _MousePressed( int button )
+    {
+        OnMousePressed( button );
+        if( button == MOUSE_BUTTON_LEFT )
+            OnLMousePressed();
+        else if( button == MOUSE_BUTTON_RIGHT )
+            OnRMousePressed();
+        _PressedRepeatTime = GetTick() + 40;
+    }
+
+    void _MouseUp( bool lost )
+    {
+        _IsPressed = false;
+
+        if( _DeferredMousePressed )
+        {
+            Screen._GlobalMousePressed( _PressedButton );
+            _MousePressed( _PressedButton );
+        }
+
+        OnMouseUp( _PressedButton, lost );
+
+        if( _IsDragged )
+        {
+            _IsDragged = false;
+            OnDragChanged();
+        }
+    }
+
+    void MouseClick( int button )
+    {
+        OnMouseClick( button );
+        if( button == MOUSE_BUTTON_LEFT )
+            OnLMouseClick();
+        else if( button == MOUSE_BUTTON_RIGHT )
+            OnRMouseClick();
+    }
+
+    void _MouseMove()
+    {
+        OnMouseMove();
+    }
+
+    void _GlobalMouseDown( int button )
+    {
+        OnGlobalMouseDown( button );
+        for( uint i = 0; i < _Children.length(); i++ )
+            _Children[ i ]._GlobalMouseDown( button );
+    }
+
+    void _GlobalMouseUp( int button )
+    {
+        OnGlobalMouseUp( button );
+        for( uint i = 0; i < _Children.length(); i++ )
+            _Children[ i ]._GlobalMouseUp( button );
+    }
+
+    void _GlobalMousePressed( int button )
+    {
+        OnGlobalMousePressed( button );
+        for( uint i = 0; i < _Children.length(); i++ )
+            _Children[ i ]._GlobalMousePressed( button );
+    }
+
+    void _GlobalMouseClick( int button )
+    {
+        OnGlobalMouseClick( button );
+        for( uint i = 0; i < _Children.length(); i++ )
+            _Children[ i ]._GlobalMouseClick( button );
+    }
+
+    void _GlobalMouseMove()
+    {
+        OnGlobalMouseMove();
+        for( uint i = 0; i < _Children.length(); i++ )
+            _Children[ i ]._GlobalMouseMove();
+    }
+
+    void Input( uint8 key, string@ text )
+    {
+        OnInput();
+        if( text is null )
+            OnInput( key );
+        else
+            OnInput( text );
+        OnInput( key, text );
+    }
+
+    void _GlobalInput( uint8 key, string@ text )
+    {
+        OnGlobalInput( key, text );
+        for( uint i = 0; i < _Children.length(); i++ )
+            _Children[ i ]._GlobalInput( key, text );
+    }
+
+    void _Focus()
+    {
+        if( !_IsFocused )
+        {
+            _IsFocused = true;
+            OnFocusChanged();
+        }
+    }
+
+    void _Unfocus()
+    {
+        if( _IsFocused )
+        {
+            _IsFocused = false;
+            OnFocusChanged();
+        }
+    }
+
+    void _Hover()
+    {
+        if( !_IsHovered )
+        {
+            _IsHovered = true;
+            OnHoverChanged();
+        }
+    }
+
+    void _Unhover()
+    {
+        if( _IsHovered )
+        {
+            _IsHovered = false;
+            OnHoverChanged();
+        }
+    }
+
+    GUIObject@ _Clone( GUIObject@ parent = null )
+    {
+        GUIObject@ newObject = _CloneExt( parent );
+        newObject._Init();
+        return @newObject;
+    }
+
+    GUIObject@ _CloneExt( GUIObject@ parent )
+    {
+        GUIObject@           newObject;
+        reflection::typeof < GUIObject > ( this ).instantiate( @this, @newObject );
+        newObject._Children.resize( 0 );
+        @newObject._Parent = parent;
+        if( parent !is null )
+            parent._Children.insertLast( newObject );
+        newObject.OnConstruct();
+        for( uint i = 0; i < _Children.length(); i++ )
+            _Children[ i ]._CloneExt( newObject );
+        return @newObject;
+    }
+
+    GUIPanel@ FindPanel( string& name )
+    {
+        return cast< GUIPanel >( Find( name ) );
+    }
+
+    GUIText@ FindText( string& name )
+    {
+        return cast< GUIText >( Find( name ) );
+    }
+
+    GUITextInput@ FindTextInput( string& name )
+    {
+        return cast< GUITextInput >( Find( name ) );
+    }
+
+    GUIButton@ FindButton( string& name )
+    {
+        return cast< GUIButton >( Find( name ) );
+    }
+
+    GUIObject@ Find( string& name, bool deepFind = true )
+    {
+        for( uint i = 0; i < _Children.length(); i++ )
+        {
+            GUIObject@ child = _Children[ i ];
+            if( child._Name !is null && child._Name == name )
+                return child;
+
+            if( deepFind )
+            {
+                GUIObject@ obj = child.Find( name );
+                if( obj !is null )
+                    return obj;
+            }
+        }
+        return null;
+    }
+
+    GUIObject@ GetChild( uint index )
+    {
+        return _Children[ index ];
+    }
+
+    void _RefreshPosition()
+    {
+        // Base data
+        _Width = _BaseWidth;
+        _Height = _BaseHeight;
+        int parentAbsolutePosX = ( _Parent !is null ? _Parent._AbsolutePosX : 0 );
+        int parentAbsolutePosY = ( _Parent !is null ? _Parent._AbsolutePosY : 0 );
+        int parentWidth = ( _Parent !is null ? _Parent._Width : __ScreenWidth );
+        int parentHeight = ( _Parent !is null ? _Parent._Height : __ScreenHeight );
+        int parentBaseWidth = ( _Parent !is null ? _Parent._BaseWidth : _BaseWidth );
+        int parentBaseHeight = ( _Parent !is null ? _Parent._BaseHeight : _BaseHeight );
+
+        // Dock
+        int newPosX;
+        int newPosY;
+        if( _Dock != 0 )
+        {
+            if( _Dock == DOCK_LEFT )
+            {
+                newPosX = parentAbsolutePosX;
+                newPosY = parentAbsolutePosY;
+                _Height = parentHeight;
+            }
+            else if( _Dock == DOCK_RIGHT )
+            {
+                newPosX = parentAbsolutePosX + parentWidth - _Width;
+                newPosY = parentAbsolutePosY;
+                _Height = parentHeight;
+            }
+            else if( _Dock == DOCK_TOP )
+            {
+                newPosX = parentAbsolutePosX;
+                newPosY = parentAbsolutePosY;
+                _Width = parentWidth;
+            }
+            else if( _Dock == DOCK_BOTTOM )
+            {
+                newPosX = parentAbsolutePosX;
+                newPosY = parentAbsolutePosY + parentHeight - _Height;
+                _Width = parentWidth;
+            }
+            else if( _Dock == DOCK_FILL )
+            {
+                newPosX = parentAbsolutePosX;
+                newPosY = parentAbsolutePosY;
+                _Width = parentWidth;
+                _Height = parentHeight;
+            }
+            else
+            {
+                newPosX = _BasePosX + parentAbsolutePosX;
+                newPosY = _BasePosY + parentAbsolutePosY;
+            }
+        }
+        // Anchor
+        else
+        {
+            if( ( _Anchor & ANCHOR_LEFT ) != 0 )
+                newPosX = parentAbsolutePosX + _BasePosX;
+            else if( ( _Anchor & ANCHOR_RIGHT ) != 0 )
+                newPosX = parentAbsolutePosX + _BasePosX + ( parentWidth - parentBaseWidth );
+            else
+                newPosX = parentAbsolutePosX + _BasePosX + ( parentWidth - parentBaseWidth ) / 2;
+
+            if( ( _Anchor & ANCHOR_TOP ) != 0 )
+                newPosY = parentAbsolutePosY + _BasePosY;
+            else if( ( _Anchor & ANCHOR_BOTTOM ) != 0 )
+                newPosY = parentAbsolutePosY + _BasePosY + ( parentHeight - parentBaseHeight );
+            else
+                newPosY = parentAbsolutePosY + _BasePosY + ( parentHeight - parentBaseHeight ) / 2;
+        }
+
+        // Move control
+        if( newPosX != _AbsolutePosX || newPosY != _AbsolutePosY )
+            _Move( newPosX - _AbsolutePosX, newPosY - _AbsolutePosY, false, false );
+    }
+
+    void _SizeChanged()
+    {
+        // Internal callback
+    }
+
+    // Options
+    void SetName( string@ name )
+    {
+        @_Name = name;
+    }
+
+    void SetActive( bool active )
+    {
+        if( _ActiveSelf != active )
+        {
+            _ActiveSelf = active;
+            _ActiveChanged();
+        }
+    }
+
+    void _ActiveChanged()
+    {
+        OnActiveChanged();
+        for( uint i = 0; i < _Children.length(); i++ )
+            _Children[ i ]._ActiveChanged();
+    }
+
+    void SetPosition( int x, int y )
+    {
+        if( _BasePosX == x && _BasePosY == y )
+            return;
+
+        _BasePosX = x;
+        _BasePosY = y;
+        _RefreshPosition();
+    }
+
+    void SetPosition( string& iniKey )
+    {
+        // Parse four values from ini option
+        string@ str = GetIfaceIniStr( iniKey );
+        if( @str == null || str == "" )
+            return;
+
+        string@[] @ valuesStr = splitEx( str, " " );
+        if( valuesStr.length() != 4 )
+            return;
+
+        int[] values( 4 );
+        for( int i = 0; i < 4; i++ )
+            values[ i ] = valuesStr[ i ].toInt();
+
+        _BasePosX = values[ 0 ];
+        _BasePosY = values[ 1 ];
+        _BaseWidth = values[ 2 ] - values[ 0 ];
+        _BaseHeight = values[ 3 ] - values[ 1 ];
+        _RefreshPosition();
+    }
+
+    void SetSize( int w, int h )
+    {
+        if( _BaseWidth == w && _BaseHeight == h )
+            return;
+
+        _BaseWidth = w;
+        _BaseHeight = h;
+        _RefreshPosition();
+        _SizeChanged();
+    }
+
+    void SetAnchor( int anchorStyles )
+    {
+        if( _Anchor == anchorStyles )
+            return;
+
+        _Anchor = anchorStyles;
+        _RefreshPosition();
+    }
+
+    void SetDock( int dockStyle )
+    {
+        if( _Dock == dockStyle )
+            return;
+
+        _Dock = dockStyle;
+        _RefreshPosition();
+    }
+
+    void SetDraggable( bool enabled )
+    {
+        _IsDraggable = enabled;
+    }
+
+    void SetNotHittable( bool enabled )
+    {
+        _IsNotHittable = enabled;
+    }
+
+    void SetCheckTransparentOnHit( bool enabled )
+    {
+        _CheckTransparentOnHit = enabled;
+    }
+
+    void SetDeferredMousePressed( bool enabled )
+    {
+        _DeferredMousePressed = enabled;
+    }
+}
+
+shared class GUIPanel : GUIObject
+{
+    Sprite@ get_BackgroundImage() final       { return _BackgroundImage; }
+    int     get_BackgroundImageLayout() final { return _BackgroundImage !is null ? _BackgroundImage.Layout : IMAGE_LAYOUT_NONE; }
+
+    Sprite@ _BackgroundImage;
+
+    bool IsHit( int x, int y ) override
+    {
+        if( GUIObject::IsHit( x, y ) )
+        {
+            if( _CheckTransparentOnHit && _BackgroundImage !is null )
+                return ( GetPixelColor( _BackgroundImage.Id, _BackgroundImage.Frame, x - _AbsolutePosX, y - _AbsolutePosY ) & 0xFF000000 ) != 0;
+            return true;
+        }
+        return false;
+    }
+
+    void _Draw( bool callCallback ) override
+    {
+        if( callCallback )
+            _DrawCallback();
+
+        // Normal sprite
+        if( _BackgroundImage !is null )
+            _DrawImage( _BackgroundImage );
+
+        GUIObject::_Draw( false );
+    }
+
+    void _DrawImage( Sprite@ image )
+    {
+        if( _Width > 0 && _Height > 0 )
+            image.Draw( _AbsolutePosX, _AbsolutePosY, _Width, _Height );
+    }
+
+    void SetBackgroundImage( string@ imageName, int imageLayout = IMAGE_LAYOUT_NONE )
+    {
+        _SetImage( _BackgroundImage, imageName, imageLayout );
+    }
+
+    void SetBackgroundImage( uint imageNameHash, int imageLayout = IMAGE_LAYOUT_NONE )
+    {
+        _SetImage( _BackgroundImage, imageNameHash, imageLayout );
+    }
+
+    void _SetImage( Sprite@& curImage, string@ imageName, int imageLayout )
+    {
+        @curImage = null;
+        if( imageName !is null )
+        {
+            Sprite spr;
+            spr.Load( imageName, ( findFirst( imageName, "/" ) != -1 || findFirst( imageName, "\\" ) != -1 ) ? PT_DATA : PT_ART_INTRFACE );
+            if( spr.Id != 0 )
+                @curImage = spr;
+        }
+
+        if( curImage !is null )
+            curImage.Layout = imageLayout;
+
+        if( curImage !is null && ( imageLayout == IMAGE_LAYOUT_NONE || ( _BaseWidth == 0 && _BaseHeight == 0 ) ) )
+            SetSize( curImage.Width, curImage.Height );
+    }
+
+    void _SetImage( Sprite@& curImage, uint imageNameHash, int imageLayout )
+    {
+        if( curImage !is null && curImage.LoadedNameHash == imageNameHash )
+            return;
+
+        @curImage = null;
+        if( imageNameHash != 0 )
+        {
+            Sprite spr;
+            spr.Load( imageNameHash );
+            if( spr.Id != 0 )
+                @curImage = spr;
+        }
+
+        if( curImage !is null )
+            curImage.Layout = imageLayout;
+
+        if( curImage !is null && ( imageLayout == IMAGE_LAYOUT_NONE || ( _BaseWidth == 0 && _BaseHeight == 0 ) ) )
+            SetSize( curImage.Width, curImage.Height );
+    }
+}
+
+shared class GUIText : GUIObject
+{
+    string@ get_Text()                   { return _Text; }
+    int     get_TextFont() final         { return _TextFont; }
+    uint    get_TextColor() final        { return _TextColor; }
+    uint    get_TextColorFocused() final { return _TextColorFocused; }
+    int     get_TextFlags() final        { return _TextFlags; }
+
+    string _Text;
+    int    _TextFont = FONT_DEFAULT;
+    uint   _TextColor = COLOR_TEXT;
+    uint   _TextColorFocused;
+    int    _TextFlags;
+
+    void _Draw( bool callCallback ) override
+    {
+        if( callCallback )
+            _DrawCallback();
+
+        // Text
+        string@ text = Text;
+        if( text.length() > 0 )
+        {
+            uint color = ( _IsFocused && _TextColorFocused != 0 ? _TextColorFocused : _TextColor );
+            DrawText( text, _AbsolutePosX, _AbsolutePosY, _Width, _Height, color, _TextFont, _TextFlags );
+        }
+
+        GUIObject::_Draw( false );
+    }
+
+    void SetText( string@ text, int font, int flags )
+    {
+        if( text !is null )
+            _Text = text;
+        else
+            _Text = "";
+
+        _TextFont = font;
+        _TextFlags = flags;
+    }
+
+    void SetText( string@ text )
+    {
+        if( text !is null )
+            _Text = text;
+        else
+            _Text = "";
+    }
+
+    void SetTextFont( int font )
+    {
+        _TextFont = font;
+    }
+
+    void SetTextFlags( int flags )
+    {
+        _TextFlags = flags;
+    }
+
+    void SetTextColor( uint color )
+    {
+        _TextColor = color;
+    }
+
+    void SetTextFocusedColor( uint color )
+    {
+        _TextColorFocused = color;
+    }
+}
+
+#define PASSWORD_SHOW_TIME    ( 1000 )
+shared class GUITextInput : GUIText
+{
+    uint   get_InputLength() final    { return _InputLength; }
+    bool   get_IsTextPassword() final { return _IsTextPassword; }
+    string get_PasswordChar() final   { return _PasswordChar; }
+
+    uint   _InputLength;
+    bool   _IsTextPassword;
+    string _PasswordChar;
+    uint   _PasswordTime;
+    int    _CarriagePos;
+
+    void _Construct() override
+    {
+        SetCarriage( false );
+        _TextColorFocused = COLOR_TEXT_FOCUSED;
+
+        GUIText::_Construct();
+    }
+
+    void _Draw( bool callCallback ) override
+    {
+        if( callCallback )
+            _DrawCallback();
+
+        // Text
+        string@ text = Text;
+        if( _IsTextPassword )
+        {
+            string@ rawText = text;
+            @text = "";
+            for( uint i = 0; i < rawText.length(); i++ )
+                text += _PasswordChar;
+            if( GetTick() - _PasswordTime <= PASSWORD_SHOW_TIME )
+                text[ -1 ] = rawText[ -1 ];
+        }
+        if( _CarriagePos != -1 && _IsFocused )
+        {
+            if( _CarriagePos < 0 )
+                _CarriagePos = 0;
+            if( _CarriagePos > int( text.length() ) )
+                _CarriagePos = text.length();
+            @text = text.substring( 0, _CarriagePos ) + ( GetTick() % 800 < 400 ? "!" : "." ) + text.substring( _CarriagePos );
+        }
+        if( text.length() > 0 )
+        {
+            uint color = ( _IsFocused && _TextColorFocused != 0 ? _TextColorFocused : _TextColor );
+            DrawText( text, _AbsolutePosX, _AbsolutePosY, _Width, _Height, color, _TextFont, _TextFlags );
+        }
+
+        GUIObject::_Draw( false );
+    }
+
+    void Input( uint8 key, string@ text ) override
+    {
+        uint oldLen = _Text.length();
+        _ProcessKey( key, text, _Text, _CarriagePos );
+        while( _InputLength != 0 && _Text.length() > _InputLength )
+            _Text[ -1 ] = "";
+        if( _IsTextPassword )
+            _PasswordTime = ( _Text.length() > oldLen ? GetTick() : 0 );
+
+        GUIText::Input( key, text );
+    }
+
+    bool _ProcessKey( uint8 key, string@ text, string& resultText, int& carriagePos )
+    {
+        if( carriagePos != -1 )
+        {
+            if( carriagePos < 0 )
+                carriagePos = 0;
+            else if( carriagePos > int( resultText.length() ) )
+                carriagePos = resultText.length();
+
+            if( key == DIK_BACK )
+            {
+                if( carriagePos > 0 )
+                {
+                    resultText[ carriagePos - 1 ] = "";
+                    carriagePos--;
+                }
+            }
+            else if( key == DIK_DELETE )
+            {
+                if( carriagePos < int( resultText.length() ) )
+                    resultText[ carriagePos ] = "";
+            }
+            else if( key == DIK_RIGHT )
+            {
+                if( carriagePos < int( resultText.length() ) )
+                    carriagePos++;
+            }
+            else if( key == DIK_LEFT )
+            {
+                if( carriagePos > 0 )
+                    carriagePos--;
+            }
+            else if( key == DIK_HOME )
+            {
+                carriagePos = 0;
+            }
+            else if( key == DIK_END )
+            {
+                carriagePos = resultText.length();
+            }
+            else if( text !is null )
+            {
+                resultText = resultText.substring( 0, carriagePos ) + text + resultText.substring( carriagePos );
+                carriagePos += text.length();
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if( key == DIK_BACK )
+            {
+                if( resultText.length() > 0 )
+                    resultText[ -1 ] = "";
+            }
+            else if( text !is null )
+            {
+                resultText += text;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void SetInputLength( uint length )
+    {
+        _InputLength = length;
+    }
+
+    void SetInputPassword( string@ passwordChar )
+    {
+        _IsTextPassword = ( @passwordChar != null && passwordChar.length() == 1 );
+        _PasswordChar = passwordChar;
+        _PasswordTime = 0;
+    }
+
+    void SetCarriage( bool enable )
+    {
+        _CarriagePos = ( enable ? int( _Text.length() ) : -1 );
+    }
+}
+
+shared class GUIButton : GUIPanel
+{
+    bool    get_IsDisabled() final          { return _IsDisabled; }
+    bool    get_IsSwitched() final          { return _IsSwitched; }
+    Sprite@ get_PressedImage() final        { return _PressedImage; }
+    int     get_PressedImageLayout() final  { return _PressedImage !is null ? _PressedImage.Layout : IMAGE_LAYOUT_NONE; }
+    Sprite@ get_HoverImage() final          { return _HoverImage; }
+    int     get_HoverImageLayout() final    { return _HoverImage !is null ? _HoverImage.Layout : IMAGE_LAYOUT_NONE; }
+    Sprite@ get_DisabledImage() final       { return _DisabledImage; }
+    int     get_DisabledImageLayout() final { return _DisabledImage !is null ? _DisabledImage.Layout : IMAGE_LAYOUT_NONE; }
+
+    bool    _IsDisabled;
+    bool    _IsSwitched;
+    Sprite@ _PressedImage;
+    Sprite@ _HoverImage;
+    Sprite@ _DisabledImage;
+
+    void _Construct() override
+    {
+        _DeferredMousePressed = true;
+
+        GUIPanel::_Construct();
+    }
+
+    void _Draw( bool callCallback ) override
+    {
+        if( callCallback )
+            _DrawCallback();
+
+        if( !_IsDisabled )
+        {
+            // Pressed image
+            bool isPressed = ( ( _IsPressed && _PressedButton == MOUSE_BUTTON_LEFT ) || _IsSwitched );
+            if( isPressed && _PressedImage !is null )
+                _DrawImage( _PressedImage );
+            // Hover image
+            else if( _IsHovered && _HoverImage !is null )
+                _DrawImage( _HoverImage );
+            // Normal image
+            else if( _BackgroundImage !is null )
+                _DrawImage( _BackgroundImage );
+        }
+        else
+        {
+            // Disabled image
+            if( _DisabledImage !is null )
+                _DrawImage( _DisabledImage );
+            // Normal image
+            else if( _BackgroundImage !is null )
+                _DrawImage( _BackgroundImage );
+        }
+
+        GUIObject::_Draw( false );
+    }
+
+    void MouseClick( int button )
+    {
+        if( _IsDisabled )
+            return;
+
+        GUIPanel::MouseClick( button );
+    }
+
+    void _MousePressed( int button )
+    {
+        if( _IsDisabled )
+            return;
+
+        GUIPanel::_MousePressed( button );
+    }
+
+    void SetPressedImage( string@ imageName, int imageLayout = IMAGE_LAYOUT_NONE )
+    {
+        _SetImage( _PressedImage, imageName, imageLayout );
+    }
+
+    void SetPressedImage( uint imageNameHash, int imageLayout = IMAGE_LAYOUT_NONE )
+    {
+        _SetImage( _PressedImage, imageNameHash, imageLayout );
+    }
+
+    void SetHoverImage( string@ imageName, int imageLayout = IMAGE_LAYOUT_NONE )
+    {
+        _SetImage( _HoverImage, imageName, imageLayout );
+    }
+
+    void SetHoverImage( uint imageNameHash, int imageLayout = IMAGE_LAYOUT_NONE )
+    {
+        _SetImage( _HoverImage, imageNameHash, imageLayout );
+    }
+
+    void SetDisabledImage( string@ imageName, int imageLayout = IMAGE_LAYOUT_NONE )
+    {
+        _SetImage( _DisabledImage, imageName, imageLayout );
+    }
+
+    void SetDisabledImage( uint imageNameHash, int imageLayout = IMAGE_LAYOUT_NONE )
+    {
+        _SetImage( _DisabledImage, imageNameHash, imageLayout );
+    }
+
+    void SetSwitch( bool enabled )
+    {
+        _IsSwitched = enabled;
+    }
+
+    void SetCondition( bool enabled )
+    {
+        _IsDisabled = !enabled;
+    }
+}
+
+shared class GUICheckBox : GUIButton
+{
+    bool get_IsChecked() final { return _IsSwitched; }
+
+    // Callbacks
+    void OnCheckedChanged() {}
+
+    void MouseClick( int button )
+    {
+        if( _IsDisabled )
+            return;
+
+        if( button == MOUSE_BUTTON_LEFT )
+            SetChecked( !_IsSwitched );
+
+        GUIPanel::MouseClick( button );
+    }
+
+    void SetChecked( bool checked )
+    {
+        if( _IsSwitched != checked )
+        {
+            _IsSwitched = checked;
+            OnCheckedChanged();
+        }
+    }
+}
+
+shared class GUIRadioButton : GUICheckBox
+{
+    void MouseClick( int button )
+    {
+        if( _IsDisabled || _IsSwitched )
+            return;
+
+        if( button == MOUSE_BUTTON_LEFT )
+            SetChecked( true );
+
+        GUIPanel::MouseClick( button );
+    }
+
+    void SetChecked( bool checked ) override
+    {
+        if( checked && _Parent !is null )
+        {
+            for( uint i = 0; i < _Parent._Children.length(); i++ )
+            {
+                GUIRadioButton@ button = cast< GUIRadioButton >( _Parent._Children[ i ] );
+                if( button !is null && button._IsSwitched )
+                {
+                    button._IsSwitched = false;
+                    button.OnCheckedChanged();
+                }
+            }
+        }
+
+        if( _IsSwitched != checked )
+        {
+            _IsSwitched = checked;
+            OnCheckedChanged();
+        }
+    }
+}
+
+shared class GUIScreen : GUIPanel
+{
+    int   get_Index() final               { return _Index; }
+    bool  get_IsHardcoded() final         { return _IsHardcoded; }
+    bool  get_IsMain() final              { return IS_CLIENT_MAIN_SCREEN( _Index ); }
+    bool  get_IsModal() final             { return _IsModal; }
+    bool  get_IsMultiinstance() final     { return _IsMultiinstance; }
+    bool  get_IsCloseOnMiss() final       { return _IsCloseOnMiss; }
+    int[] get_AvailableCursors() final    { return _AvailableCursors; }
+    int   get_Cursor() final              { return _Cursor; }
+    bool  get_IsCanMove() final           { return _IsCanMove; }
+    bool  get_IsMoveIgnoreBorders() final { return _IsMoveIgnoreBorders; }
+
+    int  _Index;
+    bool _IsHardcoded;
+    bool _IsRegistered;
+    bool _IsModal;
+    bool _IsMultiinstance;
+    bool _IsCloseOnMiss;
+    int[] _AvailableCursors;
+    int  _Cursor;
+    bool _IsCanMove;
+    bool _IsMoveIgnoreBorders;
+
+    // Workaround for input state accessing from shared code
+    bool[] @ _InputKeyPressed;
+    bool[] @ _InputMousePressed;
+
+    void _Show( dictionary@ params ) override
+    {
+        // Make screen active
+        _ActiveSelf = true;
+
+        // Set default cursor
+        _Cursor = ( _AvailableCursors.length() > 0 ? AvailableCursors[ 0 ] : CURSOR_DEFAULT );
+
+        // Base behaviour
+        GUIPanel::_Show( params );
+    }
+
+    void _Hide() override
+    {
+        // Make screen active
+        _ActiveSelf = false;
+
+        // Base behaviour
+        GUIPanel::_Hide();
+    }
+
+    void _Appear( dictionary@ params ) override
+    {
+        // Set screen cursor
+        ChangeCursor( _Cursor );
+
+        // Base behaviour
+        GUIPanel::_Appear( params );
+    }
+
+    void _Disappear() override
+    {
+        // Store cursor
+        _Cursor = GetCurrentCursor();
+
+        // Base behaviour
+        GUIPanel::_Disappear();
+    }
+
+    void _GlobalMouseClick( int button ) override
+    {
+        if( button == MOUSE_BUTTON_RIGHT )
+        {
+            if( _AvailableCursors.length() > 0 )
+            {
+                int curCursor = GetCurrentCursor();
+                int curCursorIndex = _AvailableCursors.find( curCursor );
+                if( curCursorIndex != -1 )
+                {
+                    curCursorIndex++;
+                    if( curCursorIndex >= int( _AvailableCursors.length() ) )
+                        curCursorIndex = 0;
+                    ChangeCursor( _AvailableCursors[ curCursorIndex ] );
+                }
+            }
+        }
+        else
+        {
+            GUIPanel::_GlobalMouseClick( button );
+        }
+    }
+
+    void _GlobalMouseMove() override
+    {
+        // Process moving
+        if( _IsCanMove )
+        {
+            GUIObject@ pressedObj = _FindPressed( this );
+            if( pressedObj !is null && pressedObj._PressedButton == MOUSE_BUTTON_LEFT && pressedObj._IsHitch() )
+            {
+                int lastPosX = _AbsolutePosX;
+                int lastPosY = _AbsolutePosY;
+                int newPosX = _AbsolutePosX + ( __MouseX - pressedObj._PressedX );
+                int newPosY = _AbsolutePosY + ( __MouseY - pressedObj._PressedY );
+                pressedObj._PressedX = __MouseX;
+                pressedObj._PressedY = __MouseY;
+
+                // Check screen borders
+                if( !_IsMoveIgnoreBorders )
+                {
+                    int parentAbsolutePosX = ( _Parent !is null ? _Parent._AbsolutePosX : 0 );
+                    int parentAbsolutePosY = ( _Parent !is null ? _Parent._AbsolutePosY : 0 );
+                    int parentWidth = ( _Parent !is null ? _Parent._Width : __ScreenWidth );
+                    int parentHeight = ( _Parent !is null ? _Parent._Height : __ScreenHeight );
+                    int px = newPosX;
+                    int py = newPosY;
+                    if( newPosX < parentAbsolutePosX )
+                        newPosX = parentAbsolutePosX;
+                    if( newPosY < parentAbsolutePosY )
+                        newPosY = parentAbsolutePosY;
+                    if( newPosX + _Width > parentWidth )
+                        newPosX = parentWidth - _Width;
+                    if( newPosY + _Height > parentHeight )
+                        newPosY = parentHeight - _Height;
+                    pressedObj._PressedX += newPosX - px;
+                    pressedObj._PressedY += newPosY - py;
+                }
+
+                // Callback
+                if( lastPosX != newPosX || lastPosY != newPosY )
+                {
+                    int deltaX = newPosX - lastPosX;
+                    int deltaY = newPosY - lastPosY;
+                    _Move( deltaX, deltaY, true, true );
+                }
+            }
+        }
+
+        GUIPanel::_GlobalMouseMove();
+    }
+
+    GUIObject@ _FindPressed( GUIObject@ obj )
+    {
+        if( obj._IsPressed )
+            return obj;
+        for( uint i = 0; i < obj._Children.length(); i++ )
+        {
+            GUIObject@ pressedObj = _FindPressed( obj._Children[ i ] );
+            if( pressedObj !is null )
+                return pressedObj;
+        }
+        return null;
+    }
+
+    // Options
+    void SetModal( bool enabled )
+    {
+        _IsModal = enabled;
+    }
+
+    void SetMultiinstance( bool enabled )
+    {
+        _IsMultiinstance = enabled;
+    }
+
+    void SetCloseOnMiss( bool enabled )
+    {
+        _IsCloseOnMiss = enabled;
+    }
+
+    void SetAvailableCursors( int[] cursors )
+    {
+        _AvailableCursors = cursors;
+    }
+
+    void SetCanMove( bool enabled, bool ignoreBorders )
+    {
+        _IsCanMove = enabled;
+        _IsMoveIgnoreBorders = ignoreBorders;
+    }
+}
+
+shared class GUIGrid : GUIPanel
+{
+    string@      get_CellPrototype() final { return _CellPrototype; }
+    uint         get_GridSize() final      { return _GridSize; }
+    int          get_Columns() final       { return _Columns; }
+    int          get_PaddingX() final      { return _PaddingX; }
+    int          get_PaddingY() final      { return _PaddingY; }
+    GUIObject@[] get_Cells() final         { return _Cells; }
+
+    string@ _CellPrototype;
+    uint    _GridSize;
+    int     _Columns;
+    int     _PaddingX;
+    int     _PaddingY;
+    GUIObject@[] _Cells;
+
+    void _Init() override
+    {
+        if( _CellPrototype !is null )
+            SetCellPrototype( _CellPrototype );
+
+        if( _GridSize > 0 )
+            ResizeGrid( _GridSize );
+
+        GUIPanel::_Init();
+    }
+
+    void ResizeGrid( uint size )
+    {
+        // Find cell prototype
+        if( _CellPrototype is null || _CellPrototype.length() == 0 )
+            return;
+        GUIObject@ cellPrototype = ( _CellPrototype[ 0 ] != "." ? Find( _CellPrototype ) : Parent.Find( _CellPrototype.substring( 1 ), false ) );
+        if( cellPrototype is null )
+            return;
+
+        // Get cell index
+        int childIndex = -1;
+        if( cellPrototype._Parent is this )
+            childIndex = cellPrototype._Parent._Children.findByRef( cellPrototype );
+
+        // Remove current instances
+        for( uint i = 0; i < _Children.length();)
+        {
+            if( _Cells.findByRef( _Children[ i ] ) != -1 )
+                _Children.removeAt( i );
+            else
+                i++;
+        }
+        _Cells.resize( 0 );
+
+        // Create new intsances
+        cellPrototype._ActiveSelf = true;
+        GUIObject@[] cellInstances;
+        int col = 0, row = 0;
+        for( uint i = 0; i < size; i++ )
+        {
+            GUIObject@ cellInstance = cellPrototype._CloneExt( this );
+            _Children.removeLast();
+            _Children.insertAt( ++childIndex, cellInstance );
+            _Cells.insertLast( cellInstance );
+            _SetCellIndex( cellInstance, this, cellInstances.length() );
+            cellInstances.insertLast( cellInstance );
+            cellInstance._Move( col * ( cellInstance._Width + _PaddingX ), row * ( cellInstance._Height + _PaddingY ), false, true );
+
+            if( ++col >= _Columns )
+            {
+                col = 0;
+                row++;
+            }
+        }
+        cellPrototype._ActiveSelf = false;
+
+        // Callbacks
+        for( uint i = 0; i < cellInstances.length(); i++ )
+        {
+            OnResizeGrid( cellInstances[ i ], i );
+            _ResizeGrid( cellInstances[ i ], cellInstances[ i ], i );
+        }
+
+        // Init instances
+        for( uint i = 0; i < cellInstances.length(); i++ )
+            cellInstances[ i ]._Init();
+    }
+
+    void _SetCellIndex( GUIObject@ obj, GUIGrid@ grid, uint cellIndex )
+    {
+        @obj._Grid = grid;
+        obj._CellIndex = cellIndex;
+
+        for( uint i = 0; i < obj._Children.length(); i++ )
+            _SetCellIndex( obj._Children[ i ], grid, cellIndex );
+    }
+
+    void _ResizeGrid( GUIObject@ obj, GUIObject@ cell, uint cellIndex )
+    {
+        obj.OnResizeGrid( cell, cellIndex );
+
+        for( uint i = 0; i < obj._Children.length(); i++ )
+            _ResizeGrid( obj._Children[ i ], cell, cellIndex );
+    }
+
+    void SetCellPrototype( string name )
+    {
+        @_CellPrototype = name;
+        if( _CellPrototype !is null && _CellPrototype.length() > 0 )
+        {
+            GUIObject@ cellPrototype = ( _CellPrototype[ 0 ] != "." ? Find( _CellPrototype ) : Parent.Find( _CellPrototype.substring( 1 ), false ) );
+            if( cellPrototype !is null )
+                cellPrototype._ActiveSelf = false;
+        }
+    }
+
+    void SetGridSize( uint size )
+    {
+        _GridSize = size;
+    }
+
+    void SetColumns( int length )
+    {
+        _Columns = length;
+    }
+
+    void SetPadding( int x, int y )
+    {
+        _PaddingX = x;
+        _PaddingY = y;
+    }
+}
+
+shared class GUIMessageBox : GUIText
+{
+    string[] get_MessageTexts() final      { return _MessageTexts; }
+    int[]    get_MessageTypes() final      { return _MessageTypes; }
+    string[] get_MessageTimes() final      { return _MessageTimes; }
+    bool[]   get_DisplayedMessages() final { return _DisplayedMessages; }
+    bool     get_InvertMessages() final    { return _InvertMessages; }
+
+    string[] _MessageTexts;
+    int[]    _MessageTypes;
+    string[] _MessageTimes;
+    bool[]   _DisplayedMessages;
+    bool   _InvertMessages;
+    int    _Scroll;
+    int    _MaxScroll;
+    int    _ScrollLines;
+    Sprite _ScrollUp;
+    Sprite _ScrollDown;
+
+    void _Construct() override
+    {
+        _DisplayedMessages = array< bool >( FOMB_ALL, true );
+
+        _ScrollUp.Load( "SUPARROW.FRM", PT_ART_INTRFACE );
+        _ScrollDown.Load( "SDNARROW.FRM", PT_ART_INTRFACE );
+
+        GUIText::_Construct();
+    }
+
+    void _Show( dictionary@ params ) override
+    {
+        GUIText::_Show( params );
+
+        _InvertMessages = __MsgboxInvert;
+        _GenerateText();
+    }
+
+    void _Draw( bool callCallback ) override
+    {
+        if( !_InvertMessages )
+            _TextFlags = FT_UPPER | FT_BOTTOM | FT_SKIPLINES_END( _ScrollLines );
+        else
+            _TextFlags = FT_SKIPLINES( _ScrollLines );
+
+        GUIText::_Draw( callCallback );
+
+        if( _IsHovered )
+        {
+            Sprite@ spr = ( __MouseY < _AbsolutePosY + _Height / 2 ? _ScrollUp : _ScrollDown );
+            spr.Draw( __MouseX - spr.Width / 2, __MouseY - spr.Height / 2 );
+        }
+    }
+
+    void _Remove() override
+    {
+        __HideCursor = false;
+
+        GUIText::_Remove();
+    }
+
+    void _Hover() override
+    {
+        GUIText::_Hover();
+
+        __HideCursor = true;
+    }
+
+    void _Unhover() override
+    {
+        GUIText::_Unhover();
+
+        __HideCursor = false;
+    }
+
+    void _SizeChanged() override
+    {
+        _GenerateText();
+
+        GUIText::_SizeChanged();
+    }
+
+    void _MousePressed( int button ) override
+    {
+        if( button == MOUSE_BUTTON_LEFT || button == MOUSE_BUTTON_WHEEL_UP || button == MOUSE_BUTTON_WHEEL_DOWN )
+        {
+            if( button == MOUSE_BUTTON_WHEEL_UP || ( button == MOUSE_BUTTON_LEFT && __MouseY < _AbsolutePosY + _Height / 2 ) )
+            {
+                if( _InvertMessages && _Scroll > 0 )
+                    _Scroll--;
+                if( !_InvertMessages && _Scroll < _MaxScroll )
+                    _Scroll++;
+            }
+            else if( button == MOUSE_BUTTON_WHEEL_DOWN || ( button == MOUSE_BUTTON_LEFT && __MouseY >= _AbsolutePosY + _Height / 2 ) )
+            {
+                if( _InvertMessages && _Scroll < _MaxScroll )
+                    _Scroll++;
+                if( !_InvertMessages && _Scroll > 0 )
+                    _Scroll--;
+            }
+            _GenerateText();
+        }
+
+        GUIText::_MousePressed( button );
+    }
+
+    void AddMessage( string@ text, int type = FOMB_GAME )
+    {
+        // Skip error messages
+        if( type == FOMB_GAME && text == "error" )
+            return;
+
+        // Set text
+        string messageText;
+        if( type >= FOMB_GAME && type <= FOMB_VIEW )
+        {
+            uint[] sayColors = { COLOR_DGREEN, COLOR_TEXT, COLOR_DRED, COLOR_DDGREEN };
+            messageText = "|" + sayColors[ type ] + " " + EncodeUTF8( TEXT_SYMBOL_DOT ) + " |" + COLOR_TEXT + " " + text;
+        }
+        else
+        {
+            messageText = text;
+        }
+        _MessageTexts.insertLast( messageText );
+
+        // Set type
+        int messageType = type;
+        _MessageTypes.insertLast( messageType );
+
+        // Set time
+        uint16 year = 0;
+        uint16 month = 0;
+        uint16 day = 0;
+        uint16 dayOfWeek = 0;
+        uint16 hour = 0;
+        uint16 minute = 0;
+        uint16 second = 0;
+        uint16 milliseconds;
+        GetTime( year, month, day, dayOfWeek, hour, minute, second, milliseconds );
+        string messageTime = ( hour <= 9 ? "0" : "" ) + hour + ":" + ( minute <= 9 ? "0" : "" ) + minute + ":" + ( second <= 9 ? "0" : "" ) + second + " ";
+        _MessageTimes.insertLast( messageTime );
+
+        // Generate mess box
+        if( _DisplayedMessages[ type ] )
+        {
+            if( _Scroll > 0 && _IsHovered )
+                _Scroll++;
+            else
+                _Scroll = 0;
+        }
+        _GenerateText();
+    }
+
+    void _GenerateText()
+    {
+        if( !Active )
+            return;
+
+        _Text = "";
+        if( _MessageTexts.length() == 0 )
+            return;
+
+        int tw = 0, th = 0;
+        int maxLines = 0;
+        GetTextInfo( null, _Width, _Height, _TextFont, 0, tw, th, maxLines );
+        if( maxLines <= 0 )
+        {
+            _MaxScroll = 0;
+            _ScrollLines = 0;
+            return;
+        }
+
+        _ScrollLines = -1;
+        int lines = 0;
+        for( int i = _MessageTexts.length() - 1; i >= 0; i-- )
+        {
+            string@ messageText = _MessageTexts[ i ];
+            int     messageType = _MessageTypes[ i ];
+            string@ messageTime = _MessageTimes[ i ];
+
+            // Skip if not need to display
+            if( !_DisplayedMessages[ messageType ] )
+                continue;
+
+            // Skip scrolled lines
+            int curLines = lines;
+            int skipLines = 0;
+            GetTextInfo( messageText, _Width, 1000, _TextFont, 0, tw, th, skipLines );
+            lines += skipLines;
+
+            if( _ScrollLines < 0 )
+            {
+                if( lines <= _Scroll )
+                    continue;
+                _ScrollLines = _Scroll - curLines;
+            }
+
+            if( curLines - _Scroll < maxLines )
+            {
+                // Add to message box
+                if( _InvertMessages )
+                    _Text += messageText + "\n";
+                else
+                    _Text = messageText + "\n" + _Text;
+            }
+            else
+            {
+                break;
+            }
+        }
+        _MaxScroll = lines - maxLines;
+        if( _ScrollLines < 0 )
+            _ScrollLines = 0;
+    }
+
+    bool _SetDisplayedMessage( int messageType, bool enable )
+    {
+        bool generateText = false;
+
+        if( messageType != FOMB_ALL )
+        {
+            if( _DisplayedMessages[ messageType ] != enable )
+            {
+                _DisplayedMessages[ messageType ] = enable;
+                generateText = true;
+            }
+        }
+        else
+        {
+            for( uint i = 0; i < FOMB_ALL; i++ )
+            {
+                if( _DisplayedMessages[ messageType ] != enable )
+                {
+                    _DisplayedMessages[ messageType ] = enable;
+                    generateText = true;
+                }
+            }
+        }
+
+        return generateText;
+    }
+
+    void SetDisplayedMessages( int[] messageTypes )
+    {
+        bool generateText = false;
+        bool displayAll = ( messageTypes.find( FOMB_ALL ) != -1 );
+        for( uint i = 0; i < _DisplayedMessages.length(); i++ )
+            if( _SetDisplayedMessage( i, displayAll || messageTypes.find( i ) != -1 ) )
+                generateText = true;
+        if( generateText )
+            _GenerateText();
+    }
+
+    void ChangeDisplayedMessage( int messageType, bool enable )
+    {
+        if( _SetDisplayedMessage( messageType, enable ) )
+            _GenerateText();
+    }
+
+    void SetInvertMessages( bool invert )
+    {
+        _InvertMessages = invert;
+        _GenerateText();
+    }
+}
+
+#define CONSOLE_DATA_PREFIX    "console_"
+shared class GUIConsole : GUITextInput
+{
+    string get_HistoryStorageName() final { return _HistoryStorageName; }
+    string[] @ get_History() final        {
+        return _History;
+    }
+    uint get_HistoryMaxLength() final { return _HistoryMaxLength; }
+
+    string@ _HistoryStorageName;
+    string  _HistoryActualStorageName;
+    string[] _History;
+    uint    _HistoryMaxLength;
+    uint    _HistoryCur;
+
+    void _Construct() override
+    {
+        SetCarriage( true );
+        @_HistoryStorageName = "";
+
+        GUITextInput::_Construct();
+    }
+
+    void Toggle()
+    {
+        if( !Active )
+        {
+            // Activate console
+            Activate();
+        }
+        else if( _Text.length() == 0 )
+        {
+            // Deactivate console
+            Deactivate();
+        }
+        else
+        {
+            // Send text
+            SendText();
+        }
+    }
+
+    void Activate()
+    {
+        // Activate console
+        if( Active || !Parent.Active )
+            return;
+
+        // Load history
+        string actualStorageName = "";
+        if( _HistoryStorageName !is null && __Name !is null && __Name != "" )
+            actualStorageName = CONSOLE_DATA_PREFIX + __Name + _HistoryStorageName;
+
+        if( _HistoryActualStorageName != actualStorageName )
+        {
+            _History.resize( 0 );
+            _HistoryActualStorageName = actualStorageName;
+            if( _HistoryActualStorageName != "" )
+            {
+                Serializator data;
+                if( data.Load( _HistoryActualStorageName ) )
+                    data.Get( _History );
+            }
+        }
+
+        _HistoryCur = _History.length();
+
+        // Raise callbacks
+        SetActive( true );
+    }
+
+    void Deactivate()
+    {
+        // Deactivate console
+        if( _ActiveSelf )
+            SetActive( false );
+    }
+
+    void SendText()
+    {
+        if( !Active )
+            return;
+
+        // Modify history
+        _History.insertLast( _Text );
+        for( uint i = 0; i < _History.length() - 1;)
+        {
+            if( _History[ i ] == _History.last() )
+                _History.removeAt( i );
+            else
+                i++;
+        }
+
+        // Trim history length
+        uint historyMaxLength = ( _HistoryMaxLength != 0 ? _HistoryMaxLength : __ConsoleHistorySize );
+        while( _History.length() > historyMaxLength )
+            _History.removeAt( 0 );
+        _HistoryCur = _History.length();
+
+        // Save history
+        if( _HistoryActualStorageName != "" )
+        {
+            Serializator data;
+            data.Set( _History );
+            data.Save( _HistoryActualStorageName );
+        }
+
+        // Send
+        bool[] @ keyPressed = Screen._InputKeyPressed;
+        if( keyPressed[ DIK_LCONTROL ] || keyPressed[ DIK_RCONTROL ] )
+            CustomCall( "ConsoleMessage\n/s" + _Text, "\n" );
+        else if( keyPressed[ DIK_LMENU ] || keyPressed[ DIK_RMENU ] )
+            CustomCall( "ConsoleMessage\n/w" + _Text, "\n" );
+        else if( keyPressed[ DIK_LSHIFT ] || keyPressed[ DIK_RSHIFT ] )
+            CustomCall( "ConsoleMessage\n/r" + _Text, "\n" );
+        else
+            CustomCall( "ConsoleMessage\n" + _Text, "\n" );
+
+        // Clear text
+        _Text = "";
+        _CarriagePos = 0;
+    }
+
+    void _GlobalInput( uint8 key, string@ text ) override
+    {
+        GUITextInput::_GlobalInput( key, text );
+
+        if( Active )
+        {
+            if( key == DIK_UP && _HistoryCur > 0 )
+            {
+                _HistoryCur--;
+                _Text = _History[ _HistoryCur ];
+                _CarriagePos = _Text.length();
+            }
+            else if( key == DIK_DOWN )
+            {
+                if( _HistoryCur + 1 < _History.length() )
+                {
+                    _HistoryCur++;
+                    _Text = _History[ _HistoryCur ];
+                    _CarriagePos = _Text.length();
+                }
+                else
+                {
+                    _HistoryCur = _History.length();
+                    _Text = "";
+                    _CarriagePos = 0;
+                }
+
+            }
+            else
+            {
+                GUITextInput::Input( key, text );
+            }
+        }
+
+        if( key == DIK_RETURN || key == DIK_NUMPADENTER )
+        {
+            Toggle();
+        }
+    }
+
+    void Input( uint8 key, string@ text ) override
+    {
+        GUIText::Input( key, text );
+    }
+
+    void _Draw( bool callCallback ) override
+    {
+        if( callCallback )
+            _DrawCallback();
+
+        string@ text = Text;
+
+        if( _CarriagePos < 0 )
+            _CarriagePos = 0;
+        if( _CarriagePos > int( text.length() ) )
+            _CarriagePos = text.length();
+
+        @text = text.substring( 0, _CarriagePos ) + ( GetTick() % 800 < 400 ? "!" : "." ) + text.substring( _CarriagePos );
+        DrawText( text, _AbsolutePosX, _AbsolutePosY, _Width, _Height, _TextColor, _TextFont, _TextFlags );
+
+        GUIObject::_Draw( false );
+    }
+
+    void SetHistoryStorage( string storageName )
+    {
+        // Set storage name
+        _HistoryStorageName = storageName;
+    }
+
+    void SetHistoryMaxLength( uint length )
+    {
+        _HistoryMaxLength = length;
+    }
+}
+
+shared class GUIItemView : GUIGrid
+{
+    int  get_UserData() final   { return _UserData; }
+    bool get_UseSorting() final { return _UseSorting; }
+    uint get_CritterId() final  { return _CritterId; }
+    ItemCl@[] @ get_Items() final      {
+        return _Items;
+    }
+    int get_Scroll() final { return _Scroll; }
+
+    int  _UserData;
+    bool _UseSorting;
+    uint _CritterId;
+    ItemCl@[] _Items;
+    int  _Scroll;
+
+    // Callbacks
+    int  OnCheckItem( ItemCl@ item ) { return -1; }
+    void OnScrollChanged()           {}
+
+    ItemCl@ GetItem( uint cellIndex )
+    {
+        int itemIndex = cellIndex + _Scroll;
+        return ( itemIndex >= 0 && itemIndex < int( _Items.length() ) ? _Items[ itemIndex ] : null );
+    }
+
+    void Resort()
+    {
+        _Resort();
+
+        // Check scroll overflow
+        int maxScroll = int( _Items.length() ) - int(_GridSize);
+        if( _Columns > 0 )
+            maxScroll += maxScroll % _Columns;
+        if( maxScroll < 0 )
+            maxScroll = 0;
+        if( _Scroll > maxScroll )
+            SetScroll( maxScroll );
+    }
+
+    void _Resort()
+    {
+        _Items.resize( 0 );
+
+        CritterCl@ cr = ( _CritterId == 0 ? GetChosen() : GetCritter( _CritterId ) );
+        if( cr !is null )
+        {
+            ItemCl@[] items;
+            cr.GetItems( -1, items );
+            if( !_UseSorting )
+            {
+                for( uint i = 0; i < items.length(); i++ )
+                {
+                    int itemIndex = OnCheckItem( items[ i ] );
+                    if( itemIndex >= 0 )
+                    {
+                        if( itemIndex >= int( _Items.length() ) )
+                            _Items.resize( itemIndex + 1 );
+                        @_Items[ itemIndex ] = items[ i ];
+                    }
+                }
+            }
+            else
+            {
+                int[] sortValues;
+                for( uint i = 0; i < items.length(); i++ )
+                {
+                    int sortValue = OnCheckItem( items[ i ] );
+                    if( sortValue >= 0 )
+                    {
+                        bool added = false;
+                        for( uint j = 0; j < _Items.length(); j++ )
+                        {
+                            if( sortValues[ j ] > sortValue )
+                            {
+                                _Items.insertAt( j, items[ i ] );
+                                sortValues.insertAt( j, sortValue );
+                                added = true;
+                                break;
+                            }
+                        }
+                        if( !added )
+                        {
+                            _Items.insertLast( items[ i ] );
+                            sortValues.insertLast( sortValue );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    void SetUserData( int data )
+    {
+        _UserData = data;
+    }
+
+    void SetUseSorting( bool enable )
+    {
+        _UseSorting = enable;
+    }
+
+    void SetScroll( int value, bool checkAvailability = false )
+    {
+        if( checkAvailability && !CheckScrollAvailability( value ) )
+            return;
+
+        _Scroll = value;
+        OnScrollChanged();
+    }
+
+    bool CheckScrollAvailability( int value )
+    {
+        if( value < _Scroll )
+        {
+            int minScroll = 0;
+            return value >= minScroll;
+        }
+        if( value > _Scroll )
+        {
+            int maxScroll = int( _Items.length() ) - int(_GridSize);
+            if( _Columns > 0 )
+                maxScroll += maxScroll % _Columns;
+            if( maxScroll < 0 )
+                maxScroll = 0;
+            return value <= maxScroll;
+        }
+        return false;
+    }
+
+    void SetCritter( uint crId )
+    {
+        _CritterId = crId;
+        _Resort();
+    }
+}
+
+#endif // __CLIENT_GUI__

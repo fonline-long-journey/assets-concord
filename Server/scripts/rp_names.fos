@@ -1,0 +1,268 @@
+#ifdef __SERVER
+	#include "_defines.fos"
+	#include "_macros.fos"
+	#include "serializator.fos"
+	
+void unsafe_get_names( Critter& player, int param0, int param1, int param2, string@, int[] @ param4 )
+{
+	Serializator serializator;
+	string key = GetPlayerName(player.Id) + "_names";
+	serializator.Load(key);
+	
+	string names = "";
+	serializator.Get(names);
+	//Log("Send Names :\n" + names);
+
+	player.RunClientScript("rp_names@receiveNames", 0, 0, 0, names, null);
+}
+	
+void unsafe_saveNames( Critter& player, int param0, int param1, int param2, string@ names, int[] @ param4 )
+{
+	//Log("Save Names :\n" + names);
+	Serializator serializator;
+	string key = GetPlayerName(player.Id) + "_names";
+	
+	serializator.Set(names);
+	serializator.Save(key);
+
+}
+	
+void unsafe_char_middle_click( Critter& player, int param0, int param1, int param2, string@ param3, int[] @ param4 )
+{
+    Critter@ target = GetCritter( param0 );
+
+    if( target is null )
+    {
+        player.Say( SAY_NETMSG, "Naming Error1!" );
+        return;
+    }
+
+    if( !player.IsSee( target ) )
+    {
+        player.Say( SAY_NETMSG, "Naming Error2!" );
+        return;
+    }
+	
+
+    if( target.Param[CR_FACE_HIDDEN] > 0 )
+    {
+        player.Say( SAY_NETMSG, "Вы не можете запомнить человека в робе." );
+        return;
+    }
+
+	
+    player.ShowScreen( SCREEN_SAY, 0, "answer_set_new_name" );
+    player.ParamBase[ ST_VAR5 ] = target.Id;
+    player.Say( SAY_SAY_TITLE, "Запомнить по именем..." );
+}
+
+void answer_set_new_name( Critter& player, uint answerI, string& answerS )
+{
+    if( answerS.length() < 1 || answerS.length() > 25 )
+        return;
+
+    player.RunClientScript( "rp_names@saveName", player.ParamBase[ ST_VAR5 ], 0, 0, answerS, null );
+}
+	
+#endif
+#ifdef __CLIENT
+	#include "_client_defines.fos"
+	#include "_defines.fos"
+	#include "_msgstr.fos"
+	#include "_macros.fos"
+
+	dictionary names;
+	
+string getName(int crId){
+	string name;
+	names.get("" + crId, name);
+	CritterCl@ cr = GetCritter(crId);
+	CritterCl@ chosen = GetChosen();
+	
+	if(cr.IsPlayer()){
+
+		if( cr.Param[CR_FACE_HIDDEN] > 0)
+		{
+			return "Незнакомец";
+		}
+	
+		if(name != ""){
+			return name;
+		}
+		
+		return cr.Name;
+		/*
+		if(chosen.Param[CR_CURRENT_ROLE] == cr.Param[CR_CURRENT_ROLE])
+		{
+			return cr.Name;
+		}
+		
+		if(chosen.Param[CR_CURRENT_ROLE] == ROLE_COP && cr.Param[CR_CURRENT_ROLE] == ROLE_SHERIFF){
+			return cr.Name;
+		}
+
+		if(chosen.Param[CR_CURRENT_ROLE] == ROLE_SHERIFF && cr.Param[CR_CURRENT_ROLE] == ROLE_COP){
+			return cr.Name;
+		}
+		
+		return name == "" ? "Незнакомец" : name;
+		*/
+	}
+    uint   dlgId = cr.Stat[ ST_DIALOG_ID ];
+    uint16 npcPid = cr.Pid;
+	if(name == ""){
+		cr.NameOnHead = " ";
+	}
+	else
+		cr.NameOnHead = name;
+
+	return name == "" ? GetMsgStr( TEXTMSG_DLG, STR_NPC_NAME( dlgId, npcPid ) ) : name;
+}
+
+
+void saveName(int crId, int trgtId, int param2, string@ name, int[]@ param4){
+	names.set("" + crId, name);
+	CritterCl@ cr = GetCritter(crId);
+	updateNick(cr);
+	SaveNamesOnServer();
+}
+
+void updateNick( CritterCl& cr )
+{
+	string name = getName(cr.Id);
+	cr.Name = name;
+	cr.NameOnHead = " ";
+/*
+	if(cr.Name == "Незнакомец")
+		cr.NameOnHead = "";
+	else
+		cr.NameOnHead = name;*/
+}
+
+void updateAllNicks()
+{
+	string[] keys = names.getKeys();
+
+	for(uint i = 0; i < keys.length; i++ ){
+		int crId = 0;
+		StrToInt(keys[i], crId);
+		updateNick(GetCritter(crId));
+	}
+}	
+
+void SaveNames()
+{
+	string[] ids = names.getKeys();
+    file f;
+
+    if( !( f.open( "names/Names_" + GetChosen().Id + ".nms", "w" ) >= 0 ) )
+    {
+        Message( "Ошибка создания файла Names" + GetChosen().Id + ".nms" );
+        return;
+    }
+
+    string name;
+    f.setPos( 0 );
+
+	for( uint i = 0; i < ids.length(); i++ )
+    {
+		names.get(ids[i], name);
+		f.writeString(ids[i] + "#" + name + "\n");
+    }
+
+    f.close();
+}
+
+void SaveNamesOnServer()
+{
+	string[] ids = names.getKeys();
+	string outString = "";
+	string name;
+
+	for( uint i = 0; i < ids.length(); i++ )
+    {
+		names.get(ids[i], name);
+		outString += ids[i] + "#" + name + "\n";
+    }
+	
+	RunServerScriptUnsafe("rp_names@unsafe_saveNames", 0, 0, 0, outString, null);
+}
+
+void loadNamesFromServer(){
+	RunServerScriptUnsafe("rp_names@unsafe_get_names", 0, 0, 0, null, null);
+}
+
+void receiveNames(int, int, int, string@ namesStr, int[]@ arr)
+{
+	if(!names.isEmpty()){
+		names.deleteAll();
+	}
+
+	if(namesStr is null || namesStr == ""){
+		return;
+	}
+
+	string@[] namesStrings = splitEx(namesStr, "\n");
+	string@[] res;
+
+	for(uint i = 0; i < namesStrings.length(); i++)
+	{
+		if(namesStrings[i] == ""){
+			return;
+		}
+
+		res = split(namesStrings[i], "#");
+		names.set(res[0], res[1]);
+	}
+
+}
+
+void loadNames(){
+	file f;
+	int id = GetChosen().Id;
+	names.deleteAll();
+    if(f.open( "names/Names_" + id + ".nms", "r" ) != 0 )
+    {
+        return;
+    }
+	string@ line = "";
+	string@[] res;
+	line = f.readLine();
+	while(line.length() > 0){
+		line = substring(line, 0, line.length() - 1);
+		res = split(line, "#");
+		names.set(res[0], res[1]);
+		line = f.readLine();
+	}
+	f.close();
+	Message("Вам удалось вспомнить " + names.getSize() + " " + getEnding(names.getSize()) + ".");
+}
+
+string getEnding(uint size){
+	int endNum = size % 10;
+	string res;
+	switch(endNum){
+	case 1:
+		res = "имя";
+		break;
+	case 2:
+	case 3:
+	case 4:
+		res = "имени";
+		break;
+	case 5:
+	case 6:
+	case 7:
+	case 8:
+	case 9:
+	case 0:
+		res = "имён";
+		break;
+	default:
+		res = "ошибка";
+		break;
+	}
+	return res;
+}
+
+#endif

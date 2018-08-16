@@ -1,0 +1,340 @@
+// Author: cvet
+// Doors and keys stuff.
+#include "_macros.fos"
+#include "_msgstr.fos"
+#include "rp_utils.fos"
+
+bool UseItemOnLocker( Critter& cr, Item& locker, Item& item ) // Export
+{
+	Map@ map = cr.GetMap();
+    if( item.GetProtoId() == PID_MULTI_TOOL )
+    {
+        uint8 itemType = locker.GetType();
+        if( ( itemType == ITEM_TYPE_DOOR || itemType == ITEM_TYPE_CONTAINER ) && locker.Val9 != 0 && _LockerIsOpen( locker ) )
+        {
+            locker.LockerId = 0;
+            locker.LockerComplexity = 0;
+            cr.AddItem( locker.Val9, 1 );
+            locker.Val9 = 0;
+			if( FLAG( locker.LockerCondition, LOCKER_LOCKED ) )
+				UNSETFLAG( locker.LockerCondition, LOCKER_LOCKED );
+            locker.Update();
+            cr.Say( SAY_NETMSG, "Вам удалось снять замок." );
+        }
+    }
+
+    if( item.GetType() == ITEM_TYPE_KEY && locker.GetType() == ITEM_TYPE_DOOR)
+    {
+        if( item.LockerId == locker.LockerId )
+        {
+            if( !FLAG( locker.LockerCondition, LOCKER_ISOPEN ) )
+            {
+                if( FLAG( locker.LockerCondition, LOCKER_LOCKED ) )
+                {
+                    UNSETFLAG( locker.LockerCondition, LOCKER_LOCKED );
+                    cr.Say( SAY_NETMSG, "Вы открываете дверь." );
+                }
+                else
+                {
+                    SETFLAG( locker.LockerCondition, LOCKER_LOCKED );
+                    cr.Say( SAY_NETMSG, "Вы закрываете дверь." );
+                }
+				map.PlaySound("door_lock.wav", locker.HexX, locker.HexY, 5);
+                return true;
+            }
+            cr.Say( SAY_NETMSG, "Дверь не заперта." );
+            return true;
+        }
+        else
+        {
+            cr.Say( SAY_NETMSG, "Ключ не подходит." );
+            return true;
+        }
+    }
+
+    return true;
+}
+
+bool UseSkillOnLocker( Critter& cr, Item& locker, int skill ) // Export
+{
+    Map@ map = cr.GetMap();
+    if( not valid( map ) )
+    {
+        cr.SayMsg( SAY_NETMSG, TEXTMSG_GAME, STR_USE_NOTHING );
+        return true;
+    }
+
+    if( skill == SKILL_PICK_ON_GROUND )
+    {
+        if( locker.GetType() == ITEM_TYPE_DOOR )
+        {
+            // NoOpen
+            if( FLAG( locker.LockerCondition, LOCKER_NOOPEN ) )
+            {
+                cr.SayMsg( SAY_NETMSG, TEXTMSG_GAME, STR_USE_NOTHING );
+                return true;
+            }
+
+            // Critter on hex
+            if( FLAG( locker.LockerCondition, LOCKER_ISOPEN ) && valid( map.GetCritter( locker.HexX, locker.HexY ) ) )
+            {
+                cr.SayMsg( SAY_NETMSG, TEXTMSG_GAME, STR_USE_NOTHING );
+                return true;
+            }
+
+            // Check key
+            if( !FLAG( locker.LockerCondition, LOCKER_ISOPEN ) && locker.LockerId != 0 &&
+                !FLAG( locker.LockerCondition, LOCKER_BROKEN ) && FLAG( locker.LockerCondition, LOCKER_LOCKED ) )
+            {
+                LockerBudge( locker );
+                cr.SayMsg( SAY_NETMSG, TEXTMSG_GAME, STR_ITEM_LOCKER_NEED_KEY );
+                return true;
+            }
+			
+			if(isMultiHexDoor(locker)){
+				if( FLAG( locker.LockerCondition, LOCKER_ISOPEN ) )
+					addMultihexDoorBlockers(locker, map);
+				else
+					deleteMultihexDoorBlockers(locker, map);
+			}
+
+            // Change state
+            if( FLAG( locker.LockerCondition, LOCKER_ISOPEN ) )
+                locker.LockerClose();
+            else
+                locker.LockerOpen();
+        }
+        else if( locker.GetType() == ITEM_TYPE_CONTAINER )
+        {
+            // NoOpen
+            if( FLAG( locker.LockerCondition, LOCKER_NOOPEN ) )
+            {
+                cr.SayMsg( SAY_NETMSG, TEXTMSG_GAME, STR_USE_NOTHING );
+                return true;
+            }
+
+            // Check key
+            if( !FLAG( locker.LockerCondition, LOCKER_ISOPEN ) && locker.LockerId != 0 &&
+                !FLAG( locker.LockerCondition, LOCKER_BROKEN ) && !IsKeyAviable( cr, locker.LockerId ) )
+            {
+                cr.SayMsg( SAY_NETMSG, TEXTMSG_GAME, STR_ITEM_LOCKER_NEED_KEY );
+                LockerBudge( locker );
+                return true;
+            }
+
+            // Is changeble
+            if( locker.Proto.Container_Changeble )
+            {
+                // Change state
+                if( FLAG( locker.LockerCondition, LOCKER_ISOPEN ) )
+                    locker.LockerClose();
+                else
+                {
+                    locker.LockerOpen();
+                    cr.ShowContainer( null, locker, locker.Proto.GroundLevel ? TRANSFER_HEX_CONT_DOWN : TRANSFER_HEX_CONT_UP );
+                }
+            }
+            // No changeble
+            else
+            {
+                cr.ShowContainer( null, locker, locker.Proto.GroundLevel ? TRANSFER_HEX_CONT_DOWN : TRANSFER_HEX_CONT_UP );
+            }
+        }
+    }
+    else if( skill == SK_STEAL )
+    {
+        if( locker.GetType() == ITEM_TYPE_CONTAINER && FLAG( locker.LockerCondition, LOCKER_ISOPEN ) )
+            cr.ShowContainer( null, locker, locker.Proto.GroundLevel ? TRANSFER_HEX_CONT_DOWN : TRANSFER_HEX_CONT_UP );
+        else
+            cr.SayMsg( SAY_NETMSG, TEXTMSG_GAME, STR_USE_NOTHING );
+    }
+    else if( skill == SK_LOCKPICK )
+    {
+        // NoOpen
+        if( FLAG( locker.LockerCondition, LOCKER_NOOPEN ) )
+        {
+            cr.SayMsg( SAY_NETMSG, TEXTMSG_GAME, STR_USE_NOTHING );
+            return true;
+        }
+
+        if( cr.Timeout[ TO_SK_LOCKPICK ] > 0 )
+        {
+            cr.SayMsg( SAY_NETMSG, TEXTMSG_GAME, STR_SKILL_WEARINESS );
+            return true;
+        }
+
+        if( locker.LockerId == 0 || FLAG( locker.LockerCondition, LOCKER_ISOPEN ) )
+        {
+            cr.SayMsg( SAY_NETMSG, TEXTMSG_GAME, STR_USE_NOTHING );
+            return true;
+        }
+		
+		int timeRaw = locker.LockerComplexity - cr.Skill[ SK_LOCKPICK ];
+		
+		uint time = REAL_SECOND(  CLAMP( timeRaw, 60, 300) );
+		uint8 mode = 0;
+		string@ func = "lockers@cte_OpenLock";
+		
+        uint16 activePid = cr.GetSlotProto( SLOT_HAND1, mode ).ProtoId;
+		Item@ lockpicks = _CritGetItemHand(cr);
+		
+        if( activePid != PID_LOCKPICKS )
+        {
+			cr.Say(SAY_NETMSG, "Без отмычек не обойтись.");
+			return true;
+		
+        }
+		
+		if(processAction(cr, null, lockpicks, time, locker.Id, func)){
+			cr.Say(SAY_EMOTE, "Взламывает замок");
+		}
+    }
+    else if( skill == SKILL_TAKE_ALL_CONT )
+    {
+        return false;
+    }
+    else
+    {
+        cr.SayMsg( SAY_NETMSG, TEXTMSG_GAME, STR_USE_NOTHING );
+    }
+    return true;
+}
+
+uint cte_OpenLock(Critter& cr, int identifier, uint& rate){
+	Item@ locker = GetItem(rate);
+    locker.LockerOpen();
+    if( locker.GetType() == ITEM_TYPE_CONTAINER )
+        cr.ShowContainer( null, locker, locker.Proto.GroundLevel ? TRANSFER_HEX_CONT_DOWN : TRANSFER_HEX_CONT_UP );
+		
+	cr.Say(SAY_NETMSG, "Вам удалось взломать замок.");
+	
+	endAction(cr, cr, 0, false, 0);
+	return 0;
+}
+
+bool IsKeyAviable( Critter& cr, uint lockerId ) // Export
+{
+    if( lockerId == 0 )
+        return true;
+    if( _CritFingersDoorId( cr.Id ) == lockerId || _CritEyesDoorId( cr.Id ) == lockerId )
+        return true;
+    Item@[] keys;
+	    for( uint i = 0, j = cr.GetItemsByType( ITEM_TYPE_KEY, keys ); i < j; i++ )
+        if( keys[ i ].LockerId == lockerId )
+            return true;
+			
+    return false;
+}
+
+uint GetKeyId( Critter& cr, uint lockerId ) // Export
+{
+    if( lockerId == 0 || _CritFingersDoorId( cr.Id ) == lockerId || _CritEyesDoorId( cr.Id ) == lockerId )
+        return 0;
+    Item@[] keys;
+    for( uint i = 0, j = cr.GetItemsByType( ITEM_TYPE_KEY, keys ); i < j; i++ )
+        if( keys[ i ].LockerId == lockerId )
+            return keys[ i ].Id;
+    return 0;
+}
+
+void SwitchState( Item& locker ) // Export
+{
+    // Todo: show messages
+
+    if( locker.GetType() == ITEM_TYPE_DOOR || locker.GetType() == ITEM_TYPE_CONTAINER )
+    {
+        // Check open aviability
+        if( not FLAG( locker.LockerCondition, LOCKER_NOOPEN ) )
+        {
+            // Change state
+            if( FLAG( locker.LockerCondition, LOCKER_ISOPEN ) )
+                locker.LockerClose();
+            else
+                locker.LockerOpen();
+        }
+    }
+}
+
+void LockerBudge( Item& item )   // export
+{
+    Map@ map = GetMap( item.MapId );
+    if( !valid( map ) )
+        return;
+    string sound = "ILCNTNRA.ACM";
+
+    map.PlaySound( sound, item.HexX, item.HexY, 8 );
+}
+
+import void GenericInjureCritterBlunt(Critter& cr, uint force, uint8 aim) from "health";
+void addMultihexDoorBlockers(Item& door, Map@ map)
+{
+	uint16 hexX = 0, hexY = 0;
+	Item@[] blockers;
+	int[][] blockersOffset;
+	if(door.GetProtoId() == 4768)
+	{
+		int[][] offset = {{1, 0}, {2, 0}, {-1, 0}, {-2, 0}};
+		blockersOffset = offset;
+	}else if(door.GetProtoId() == 4769)
+	{
+		int[][] offset = {{0, 1}, {0, 2}, {0, -1}, {0, -2}};
+		blockersOffset = offset;
+	}
+	
+	for(uint i = 0; i < blockersOffset.length(); i++ )
+	{
+		hexX = door.HexX + blockersOffset[i][0];
+		hexY = door.HexY + blockersOffset[i][1];
+		
+		Critter@ cr = map.GetCritter(hexX, hexY);
+		
+		if(valid(cr))
+		{
+			cr.ToKnockout(KNOCKOUT_ANIM2_DEFAULT( true ), 1, cr.HexX + 2, cr.HexY + 2 );
+			GenericInjureCritterBlunt(cr, Random(0, 100), Random(HIT_LOCATION_HEAD, HIT_LOCATION_LEFT_LEG));
+		}
+		
+		map.AddItem(hexX, hexY, 10026, 1);
+	}
+}
+
+void deleteMultihexDoorBlockers(Item& door, Map@ map)
+{
+	uint16 hexX = 0, hexY = 0;
+	Item@[] blockers;
+	int[][] blockersOffset;
+
+	if(door.GetProtoId() == 4768)
+	{
+		int[][] offset = {{1, 0}, {2, 0}, {-1, 0}, {-2, 0}};
+		blockersOffset = offset;
+	}else if(door.GetProtoId() == 4769)
+	{
+		int[][] offset = {{0, 1}, {0, 2}, {0, -1}, {0, -2}};
+		blockersOffset = offset;
+
+	}
+			
+	for(uint i = 0; i < blockersOffset.length(); i++ )
+	{
+		hexX = door.HexX + blockersOffset[i][0];
+		hexY = door.HexY + blockersOffset[i][1];
+		map.GetItems(hexX, hexY, blockers);
+	}
+	
+	for(uint i = 0; i < blockers.length(); i++)
+	{
+		if(blockers[i].GetProtoId() == 10026){
+			DeleteItem(blockers[i]);
+			blockers[i].Update();
+		}
+	}
+	
+}
+
+bool isMultiHexDoor(Item& door)
+{
+	int[] multiHexDoorPids = {4769, 4768};
+	
+	return multiHexDoorPids.find(door.GetProtoId()) >= 0;
+}

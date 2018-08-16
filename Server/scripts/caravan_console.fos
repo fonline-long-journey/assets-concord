@@ -1,0 +1,249 @@
+#include "_macros.fos"
+#include "_colors.fos"
+
+#ifdef __SERVER
+#define CARAVAN_ENTIRE_ID  ( 110 )
+#define CARAVAN_HEX_X       ( 10 )
+#define CARAVAN_HEX_Y       ( 10 )
+
+void _CaravanConsoleInit(Item& console, bool firstTime)
+{
+	console.SetEvent(ITEM_EVENT_SKILL, "caravan_console@_UseCaravanConsole");
+}
+
+bool _UseCaravanConsole(Item& console, Critter& cr, int skill){
+
+	if(cr.Param[ST_INTELLECT] < 5){
+		cr.Say(SAY_NETMSG, "Вы понятия не имеете что с этим делать");
+		return true;
+	}
+	
+	if(__CaravanCalled){
+		cr.Say(SAY_NETMSG, "Караван уже в пути");
+		return true;
+	}
+	
+	cr.RunClientScript("client_main@showCaravanConsole", 0, 0, 0, null, null);
+	cr.Say(SAY_NETMSG, "Текущий баланс:" + __CaravanBalance);
+	return true;
+}
+
+void unsafe_order(Critter& player, int id, int param1, int param2, string@ lexems, int[]@ param4){
+
+	if(!__CaravanArrived){
+		if(__CaravanCalled){
+			player.Say(SAY_NETMSG, "Караван уже в пути");
+			return;
+		}
+		
+		if(param4.length() == 0)
+		{
+			player.Say(SAY_NETMSG, "Караван не поедет без груза.");
+			return;
+		}
+		
+		ShipmentOrdering ordering;
+		
+		Shipment[]@ order = ordering.convertToShipmentArray(param4);
+		uint cost = ordering.getOrderCost(order);		
+		
+		if(cost > __CaravanBalance)
+		{
+			player.Say(SAY_NETMSG, "Не хватает денег.");
+			return;
+		}
+		
+		CreateTimeEvent(__FullSecond + REAL_MINUTE( 3 ), "caravan_console@caravan_arrive", param4, false);
+		
+		__CaravanBalance -= cost;
+		__CaravanCalled = true;
+		player.Say(SAY_NETMSG, "Караван в пути.");
+	}
+	else
+	{
+		Map@ map = GetMapByPid( MAP_MAIN_CENTER, 0);
+		uint16 hexX = 0, hexY = 0;
+	
+		map.GetEntireCoords( CARAVAN_ENTIRE_ID, 0, hexX, hexY);
+
+		Item@ caravan = map.GetItem(hexX, hexY, PID_WHITE_CARAVAN);
+		MoveItem(caravan, 1, map, CARAVAN_HEX_X, CARAVAN_HEX_Y);
+		Item@[] items;
+		
+		caravan.GetItems(0, items);
+		
+		Item@ item;
+		for(uint i = 0; i < items.length(); i++)
+		{
+			@item = items[i];
+			
+			if(item.GetProtoId() == PID_BOTTLE_CAPS)
+			{
+				__CaravanBalance += item.GetCount();
+				DeleteItem(item);
+				item.Update();
+			}
+			else if(item.GetProtoId() == PID_GOLD_NUGGET)
+			{
+				__CaravanBalance += 300 * item.GetCount();
+				DeleteItem(item);
+				item.Update();
+			}
+		}
+		
+		__CaravanArrived = false;	
+		player.Say(SAY_NETMSG, "Текущий баланс:" + __CaravanBalance);
+	}
+
+}
+
+uint caravan_arrive(uint[]@ values){
+	__CaravanCalled = false;
+	__CaravanArrived = true;
+	ShipmentOrdering ordering;
+	Shipment[] order = ordering.convertToShipmentArray(values);
+
+	Map@ map = GetMapByPid( MAP_MAIN_CENTER, 0);
+	uint16 hexX = 0, hexY = 0;
+	
+	map.GetEntireCoords( CARAVAN_ENTIRE_ID, 0, hexX, hexY);
+	
+	Item@ caravan = map.GetItem(CARAVAN_HEX_X, CARAVAN_HEX_Y, PID_WHITE_CARAVAN);
+	
+	Shipment shipment;
+	for(uint i = 0; i < order.length(); i++)
+	{
+		shipment = order[i];
+		for(uint j = 0; j < shipment.pids.length(); j++){
+			caravan.AddItem(shipment.pids[j], shipment.count[j], 0);
+		}
+	}
+	
+	MoveItem(caravan, 1, map, hexX, hexY);
+	map.SetText(hexX, hexY, COLOR_RED, "Муу!");
+	return 0;
+}
+
+
+#endif
+
+class Shipment{
+	uint id;
+	string label;
+	int[] pids;
+	int[] count;
+	uint price;
+	
+	Shipment(){}
+	
+	Shipment(uint id, string@ label, int[] pids, int[] count, uint price){
+		this.id = id;
+		this.label = label;
+		this.pids = pids;
+		this.count = count;
+		this.price = price;
+	}
+
+}
+
+class ShipmentOrdering{
+	Shipment[] shipments;
+
+	ShipmentOrdering(){
+		initiate();
+	}
+	
+	void initiate(){
+		shipments.insertLast( Shipment(1, "Лопата", array<int> = {PID_SHOVEL}, array<int> = {1}, 25) );
+		shipments.insertLast( Shipment(2, "Colt Python", array<int> = {PID_COLT_PYTHON, PID_357_AMMO}, array<int> = {1, 6}, 300) );
+		shipments.insertLast( Shipment(3, "Еда", array<int> = {PID_MUTATED_FRUIT, PID_IGUANA_ON_A_STICK, PID_MEAT_ON_A_STICK}, array<int> = {5, 5, 5}, 300) );
+		shipments.insertLast( Shipment(4, "Алкоголь", array<int> = {PID_BEER, PID_BOOZE, PID_GAMMA_GULP_BEER, PID_ROENTGEN_RUM}, array<int> = {5, 5, 5, 5}, 300) );
+		shipments.insertLast( Shipment(5, "Медикаменты", array<int> = {PID_MEDICAL_NEEDLE, PID_ADRENALINE_SHOT, PID_EMPTY_BLOOD_BAG, PID_BANDAGE}, array<int> = {5, 2, 5, 5}, 200) );
+		shipments.insertLast( Shipment(6, "Винтовочные патроны", array<int> = {PID_303_AMMO, PID_223_AMMO}, array<int> = {30, 30}, 200) );
+		shipments.insertLast( Shipment(7, "Пистолетные патроны", array<int> = {PID_10MM_AMMO_JHP, PID_45_AMMO, PID_357_AMMO}, array<int> = {20, 20, 20}, 150) );
+		shipments.insertLast( Shipment(8, "Патроны для дробовика", array<int> = {PID_22_AMMO}, array<int> = {20}, 150) );
+		shipments.insertLast( Shipment(9, "Боевая броня", array<int> = {PID_COMBAT_ARMOR}, array<int> = {1}, 1000) );
+		shipments.insertLast( Shipment(10, "Набор магазинов", array<int> = {PID_10MM_MAGAZINE, PID_223_MAGAZINE, PID_45_MAG, PID_303_MAG, PID_45_DRUM_MAG}, array<int> = {3, 3, 3, 3, 3}, 500) );
+		shipments.insertLast( Shipment(11, "Browning Automatic Rifle", array<int> = {PID_BAR, PID_303_MAG}, array<int> = {1, 2}, 1000) );
+		shipments.insertLast( Shipment(12, "Ящик Lee Enfield", array<int> = {PID_LEE_ENFIELD}, array<int> = {5}, 1000) );
+		shipments.insertLast( Shipment(13, "Томмиган", array<int> = {PID_THOMMY_GUN, PID_45_DRUM_MAG}, array<int> = {1,1}, 800) );
+		shipments.insertLast( Shipment(14, "Одежда", array<int> = {PID_LEATHER_JACKET, PID_LEATHER_ARMOR, PID_BLACK_ROBE, PID_JUMPSUIT, PID_SANDROBE}, array<int> = {1, 1, 1, 1, 1}, 400) );
+		shipments.insertLast( Shipment(15, "Ящик гранат", array<int> = {PID_FRAG_GRENADE}, array<int> = {5}, 600) );
+		shipments.insertLast( Shipment(16, "Блок сигарет", array<int> = {PID_CIGARETTES}, array<int> = {5}, 50) );
+		shipments.insertLast( Shipment(17, "Зажигалки", array<int> = {PID_LIGHTER}, array<int> = {5}, 80) );
+		shipments.insertLast( Shipment(18, "Веревки", array<int> = {PID_RP_ROPE}, array<int> = {3}, 100) );
+		shipments.insertLast( Shipment(19, "Дробовик", array<int> = {PID_WIDOWMAKER}, array<int> = {1}, 350) );
+		shipments.insertLast( Shipment(20, "Металлическая броня", array<int> = {PID_METAL_ARMOR_MK_II}, array<int> = {1}, 700) );
+
+	}
+	
+	Shipment[] getAvailableShipments(){
+		return this.shipments;
+	}
+	
+	Shipment getShipmentById(uint id){
+		for(uint i = 0; i < this.shipments.length(); i++){
+			if(shipments[i].id == id){
+				return shipments[i];
+			}
+		}
+		
+		return Shipment();
+	}
+	
+	Shipment[] convertToShipmentArray(int[]@ ids)
+	{
+		Shipment[] result;
+		
+		if(ids.length() == 0)
+			return result;
+			
+		for(uint i = 0; i < ids.length(); i++)
+		{
+			result.insertLast(getShipmentById(ids[i]));
+		}
+	
+		return result;
+	}
+	
+	Shipment[] convertToShipmentArray(uint[]@ ids)
+	{	
+		Shipment[] result;
+		
+		if(ids.length() == 0)
+			return result;
+		
+		for(uint i = 0; i < ids.length(); i++)
+		{
+			result.insertLast(getShipmentById(ids[i]));
+		}
+	
+		return result;
+	}
+	
+	uint getOrderCost(Shipment[]@ order)
+	{
+		uint cost = 0;
+		if(order.length() == 0)
+			return cost;
+			
+		for(uint i = 0; i < order.length(); i++)
+		{
+			cost += order[i].price;
+		}
+
+		return cost;
+	}
+	
+	int[]@ convertToIntArray(Shipment[] arr)
+	{
+		array<int> result;
+		for(uint i = 0; i < arr.length(); i++)
+		{
+			result.insertLast(arr[i].id);
+		}
+		
+		return result;
+	}
+
+}

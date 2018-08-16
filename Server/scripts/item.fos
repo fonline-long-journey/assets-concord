@@ -1,0 +1,441 @@
+#include "_macros.fos"
+#include "rp_notify.fos"
+#include "_time.fos"
+#include "roles.fos"
+
+import bool AddAttackPlane( Critter& npc, uint priority, Critter& target ) from "npc_planes";
+import bool inCombat(Critter& cr) from "rp_utils";
+import bool isRunning(Critter& cr) from "rp_utils";
+import void GenericInjureCritterBlunt(Critter& cr, uint force, uint8 aim) from "health";
+import void globalMessage(string@ message) from "rp_utils";
+import void arriveTrain() from "session_engine";
+
+#define SPECIAL_ITEM_TRAIN_BLOCKER( 10 )
+#define BANK_DOORS                ( 10000 )
+
+void _InitDocuments(Item& docs, bool firstTime)
+{
+	docs.SetEvent(ITEM_EVENT_USE, "item@_UseDocuments");
+}
+
+bool _UseDocuments(Item& item, Critter& cr, Critter@ onCritter, Item@ onItem, Scenery@ onScenery)
+{
+	if(item.Val1 == 0){
+		RolesEngine rolesEngine;
+		string role = rolesEngine.getRoleNameById(cr.Param[CR_CURRENT_ROLE]);
+		cr.Say(SAY_EMOTE_ON_HEAD, "Заполняет документы");
+		item.SetLexems("Документы на имя: " + GetPlayerName(cr.Id) + " " + role);
+		item.Val1 = 1;
+	}
+	
+	return false;
+}
+
+
+void _BankConsoleInit(Item& console, bool firstTime)
+{
+	console.SetEvent(ITEM_EVENT_SKILL, "item@_UseBankConsole");
+}
+
+bool _UseBankConsole(Item& console, Critter& cr, int skill){
+
+	if(cr.Param[ST_INTELLECT] < 5){
+		cr.Say(SAY_NETMSG, "Вы понятия не имеете что с этим делать");
+		return true;
+	}
+	
+	if(cr.Param[CR_CURRENT_ROLE] != ROLE_BANKIR){
+		cr.Say(SAY_NETMSG, "Ваши отпечатки пальцев не подходят.");
+		return true;
+	}
+	
+	cr.ShowScreen( SCREEN_DIALOGBOX, 3, "answer_BankConsole" );
+    cr.Say( SAY_DIALOGBOX_TEXT, "Хранилище" );
+    cr.Say( SAY_DIALOGBOX_BUTTON( 0 ), "Закрыть двери" );
+	cr.Say( SAY_DIALOGBOX_BUTTON( 1 ), "Открыть двери" );
+    cr.Say( SAY_DIALOGBOX_BUTTON( 2 ), "Включить тревогу" );
+		
+	return true;
+}
+
+void answer_BankConsole( Critter& player, uint answerI, string& answerS ){
+	Map@ map = player.GetMap();
+	if(answerI == 0 ){
+		Item@[] doors;
+		Item@[] bankDoors;
+		map.GetItemsByType(ITEM_TYPE_DOOR, doors);
+		
+		for(uint i = 0; i < doors.length(); i++)
+		{
+			if(doors[i].LockerId == BANK_DOORS){
+				doors[i].LockerClose();
+				SETFLAG( doors[i].LockerCondition, LOCKER_LOCKED );
+				map.PlaySound("door_lock.wav", doors[i].HexX, doors[i].HexY, 10);
+			}
+		}
+
+	}
+	if(answerI == 1 ){
+		Item@[] doors;
+		Item@[] bankDoors;
+		map.GetItemsByType(ITEM_TYPE_DOOR, doors);
+		
+		for(uint i = 0; i < doors.length(); i++)
+		{
+			if(doors[i].LockerId == BANK_DOORS){
+				doors[i].LockerOpen();
+				UNSETFLAG( doors[i].LockerCondition, LOCKER_LOCKED );
+				map.PlaySound("door_lock.wav", doors[i].HexX, doors[i].HexY, 10);
+			}
+		}
+
+	}
+	if(answerI == 2)
+	{   
+		map.PlaySound( "AIRSIREN.OGG" );
+		globalMessage("Тревога в хранилище.");
+	}
+}
+
+void _TrainConsoleInit(Item& console, bool firstTime)
+{
+	console.SetEvent(ITEM_EVENT_SKILL, "item@_UseTrainConsole");
+}
+
+bool _UseTrainConsole(Item& console, Critter& cr, int skill){
+
+	if(__TrainArrived){
+		cr.Say(SAY_NETMSG, "Теперь это не имеет смысла.");
+		return true;
+	}
+	
+	if(__TrainCalled == 0){
+	    cr.ShowScreen( SCREEN_DIALOGBOX, 1, "answer_TrainConsole" );
+        cr.Say( SAY_DIALOGBOX_TEXT, "Вы уверены что хотите включить стоп сигнал поезду?" );
+        cr.Say( SAY_DIALOGBOX_BUTTON( 0 ), "Да" );
+        cr.Say( SAY_DIALOGBOX_BUTTON( 1 ), "Нет" );
+	}else{
+	    cr.ShowScreen( SCREEN_DIALOGBOX, 1, "answer_TrainConsole" );
+        cr.Say( SAY_DIALOGBOX_TEXT, "Вы уверены что хотите выключить стоп сигнал?" );
+        cr.Say( SAY_DIALOGBOX_BUTTON( 0 ), "Да" );
+		cr.Say( SAY_DIALOGBOX_BUTTON( 1 ), "Нет" );
+	}
+	
+	return true;
+}
+
+void answer_TrainConsole( Critter& player, uint answerI, string& answerS ){
+	if(answerI == 0 ){
+		if(__TrainCalled == 0){
+			__TrainCalled = CreateTimeEvent(__FullSecond + REAL_MINUTE( 3 ), "e_TrainArrive", false);
+			globalMessage("Поезд остановится через 3 минуты");
+		}else{
+			EraseTimeEvent(__TrainCalled);
+			__TrainCalled = 0;
+			globalMessage("Поезд не остановится");
+		}
+	}
+}
+
+uint e_TrainArrive(uint[]@ values)
+{
+	arriveTrain();
+	return 0;
+}
+
+void _TrainInit(Item& train, bool firstTime ){
+	train.SetEvent(ITEM_EVENT_FINISH, "item@_RemoveTrain");
+}
+
+void _RemoveTrain(Item& item, bool deleted){
+	RemoveTrainBlockers(GetMap(item.MapId));
+}
+
+void AddBlocker(Map@ map, uint16 hx, uint16 hy)
+{
+    Item@ blocker = map.AddItem(hx, hy, 10026, 1);
+    blocker.Val8 = SPECIAL_ITEM_TRAIN_BLOCKER;
+    blocker.Update();
+}
+
+void RemoveTrainBlockers(Map@ map)
+{
+    array<Item@> blockers;
+    for(uint i = 0, j = map.GetItems(10026, blockers); i < j; i++)
+        if(blockers[i].Val8 == SPECIAL_ITEM_TRAIN_BLOCKER)
+            DeleteItem(blockers[i]);
+}
+
+
+void AddTrainBlockers(Map@ map, Item@ train)
+{
+    // Relative to train position
+    array<int> blockers = { 29, -1, 28, -2, 26, -2, 27, -1, 22, -2, 23, -1, 24, -2, 25, -1, 14, -2, 15, -1, 16, -2, 17, -1, 18, -2, 19, -1, 20, -2, 21, -1, 0, -2, 1, -1, 2, -2, 3, -1, 4, -2, 5, -1, 6, -2, 7, -1, 8, -2, 9, -1, 10, -2, 11, -1, 12, -2, 13, -1, 14, -2, 15, -1, -30, -2, -29, -1, -28, -2, -27, -1, -26, -2, -25, -1, -24, -2, -23, -1, -22, -2, -21, -1, -20, -2, -19, -1, -18, -2, -17, -1, -16, -2, -16, -2, -15, -1, -15, -1, -14, -2, -13, -1, -12, -2, -11, -1, -10, -2, -9, -1, -8, -2, -7, -1, -6, -2, -5, -1, -4, -2, -3, -1, -2, -2, -1, -1, 30, -1, -32, -1, -31, -1, -32, 0, -32, 1, -31, 2, -30, 2, -29, 2, -28, 2, -27, 2, -26, 2, -25, 2, -24, 2, -23, 2, -22, 2, -21, 2, -20, 2, -19, 2, -18, 2, -17, 2, -17, 2, -16, 2, -16, 2, -15, 2, -14, 2, -13, 2, -12, 2, -11, 2, -10, 2, -9, 2, -8, 2, -7, 2, -6, 2, -5, 2, -4, 2, -3, 2, -2, 2, -1, 2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 5, 2, 6, 2, 7, 2, 8, 2, 9, 2, 10, 2, 11, 2, 12, 2, 13, 2, 13, 2, 14, 2, 14, 2, 15, 2, 16, 2, 17, 2, 18, 2, 19, 2, 20, 2, 21, 2, 22, 2, 23, 2, 24, 2, 25, 2, 26, 2, 27, 2, 28, 2, 30, 2, 29, 2, 31, 2, 31, 1, 31, 0 };
+    for(uint i = 0, j = blockers.length(); i < j; i += 2)
+    {
+		Critter@ cr = map.GetCritter(train.HexX - blockers[i], train.HexY - blockers[i + 1]);
+		if(valid(cr)){
+			cr.ToDead(ANIM2_DEAD_EXPLODE, cr);
+		}
+        AddBlocker(map, train.HexX - blockers[i], train.HexY - blockers[i + 1]);
+    }
+}
+
+void _blood(Item& blood, bool firstTime){
+
+	uint protoId = blood.GetProtoId();
+	
+	if(protoId == BLOOD_1 || protoId == BLOOD_2 || protoId == BLOOD_3)
+	{
+		blood.SetEvent(ITEM_EVENT_WALK, "e_BloodWalking");
+	}	
+	blood.SetEvent(ITEM_EVENT_USE_ON_ME, "e_UseOnBlood");
+}
+
+bool e_UseOnBlood(Item& item, Critter& crit, Item@ usedItem)
+{
+	if(usedItem.GetProtoId() == PID_RAGS){
+		DeleteItem(item);
+		crit.Say(SAY_EMOTE, "Вытирает кровь");
+		return true;
+	}
+	return false;
+}
+
+void e_BloodWalking(Item& item, Critter& crit, bool entered, uint8 dir)
+{
+	if(isRunning(crit))
+	{
+		if(crit.Param[ST_AGILITY] < Random(0, 15))
+		{
+			Map@ map = crit.GetMap();
+			uint16 knockHx = crit.HexX;
+			uint16 knockHy = crit.HexY;
+			uint knockDist = Random(2, 4);
+			map.MoveHexByDir(knockHx, knockHy, dir, knockDist);
+			map.GetHexCoordWall( crit.HexX, crit.HexY, knockHx, knockHy, 0.0f, knockDist );
+			crit.Say(SAY_EMOTE, "Поскальзывается на луже");
+			crit.ToKnockout( KNOCKOUT_ANIM2_DEFAULT( Random(0, 1) == 0 ? true : false ), Random(0, 100 - crit.Param[ST_ENDURANCE]), knockHx, knockHy );
+			GenericInjureCritterBlunt(crit, Random(0, 100), Random(HIT_LOCATION_HEAD, HIT_LOCATION_LEFT_LEG));
+		}
+	}
+}
+
+// Дверь, которая зпкроется через 2 игровые минуты илии через некоторое число реальных секунд , указанное в val3
+void _DoorAutoCloseInit( Item& door, bool firstTime )
+{
+    door.SetEvent( ITEM_EVENT_SKILL, "e_UseAutoCloseDoor" );
+}
+
+void _GrenadeInit(Item& grenade, bool firstTime ){
+	grenade.SetEvent( ITEM_EVENT_USE, "e_GrenadeUse" );
+}
+
+bool e_GrenadeUse(Item& grenade, Critter& crit, Critter@ onCritter, Item@ onItem, Scenery@ onScenery){
+	Map@ map = crit.GetMap();
+	if(map.GetProtoId() == MAP_BLANK){
+		return false;
+	}
+
+	if(!valid(onCritter) && !valid(onItem) && !valid(onScenery) && grenade.Val5 != 1){
+		Notify(crit, crit, "|0xff3300 %atcr ВЫТАСКИВАЕТ ЧЕКУ ИЗ ГРАНАТЫ");
+		grenade.Val5 = 1;
+		crit.Say(SAY_EMOTE, "вытаскивает чеку из гранаты");
+		uint[] arr = {grenade.Id, crit.GetMap().Id, crit.Id};
+		CreateTimeEvent(__FullSecond + REAL_SECOND(7), "item@e_Explode", arr, false);
+		return true;
+	}
+	return false;
+}
+import void CommenceExplosion( Map@ map, uint16 tx, uint16 ty, ProtoItem& weapon ) from "health";
+uint e_Explode(uint[]@ values){
+	Map@ map = GetMap(values[1]);
+	Item@ grenade;
+	@grenade = map.GetItem(values[0]);
+	uint16 hexX, hexY;
+	if(!valid(grenade))
+	{
+		Critter@ cr = GetCritter(values[2]);
+		@grenade = cr.GetItemById(values[0]);
+		@map = cr.GetMap();
+		hexX = cr.HexX;
+		hexY = cr.HexY;
+	}else{
+	hexX = grenade.HexX; hexY = grenade.HexY;
+	}
+	DeleteItem(grenade);
+	CommenceExplosion(map, hexX, hexY, grenade.Proto); 
+	return 0;
+}
+
+
+bool e_UseAutoCloseDoor( Item& door, Critter& cr, int skill )
+{
+    CreateTimeEvent( __FullSecond + REAL_MINUTE( door.Val3 == 0 ? 2 : door.Val3 ), "e_AutoCloseDoor", door.Id, true );
+    return false;
+}
+
+uint e_AutoCloseDoor( uint[] @ val )
+{
+    Item@ door = GetItem( val[ 0 ] );
+    if( not valid( door ) )
+    {
+        return 0;
+    }
+    if( !FLAG( door.LockerCondition, LOCKER_ISOPEN ) )
+        return 0;
+    uint16 x = 0;
+    uint16 y = 0;
+    Map@   map = door.GetMapPosition( x, y );
+    if( not valid( map ) )
+    {
+        return 0;
+    }
+
+    Critter@ cr = map.GetCritter( x, y );
+    if( valid( cr ) )
+    {
+        if( cr.IsLife() )
+        {
+            return REAL_MINUTE( 3 );
+        }
+        else
+        {
+            // Попытка сдвинуть труп. Если не получится, дверь поверх трупа закроется
+            cr.TransitToMap( map.Id, x - 1, y, cr.Dir );
+        }
+    }
+
+    if( door.LockerClose() )
+        return 0;
+
+    return REAL_MINUTE( 3 );
+}
+
+// Дверь, которая не открывается стандартными способами
+void _ClosedDoorInit( Item& door, bool firstTime )
+{
+    door.SetEvent( ITEM_EVENT_SKILL, "_UseDoor" );
+}
+
+bool _UseDoor( Item& door, Critter& cr, int skill )
+{
+    return true;
+}
+
+// Дверь, при использовании которой открывается диалог
+void _DialogDoorInit( Item& door, bool firstTime )
+{
+    door.SetEvent( ITEM_EVENT_SKILL, "_UseDialogDoor" );
+}
+
+bool _UseDialogDoor( Item& door, Critter& cr, int skill )
+{
+    RunDialog( cr, door.Val3, door.HexX, door.HexY, false );
+    return true;
+}
+
+// Голодиск с номером, присвоенном в Val0
+void _HoloInit( Item& item, bool firstTime )
+{
+    if( item.GetProtoId() != PID_HOLODISK )
+        return;
+    item.HolodiskNumber = item.Val0;
+    item.SetScript( "" );
+    item.Update();
+
+}
+
+// Настройка автоматического удаления предмета через икс часов
+void SetDeleteItem( Item& item, uint delHours )
+{
+    CreateTimeEvent( __FullSecond + delHours * 60 * 60, "e_DeleteItem", item.Id, true );
+}
+
+uint e_DeleteItem( uint[] @ val )
+{
+    Item@ item = GetItem( val[ 0 ] );
+    if( valid( item ) )
+        DeleteItem( item );
+    return 0;
+}
+
+// Охраняемая дверь или другой предмет
+// в Val0 - пишется время автоматического закрытия двери, в реальных минутах, если больше 0, дверь будет автоматически закрываться
+// обратите внимание, игрок может застрять за дверью, если пройдет внутрь, а она захлопнется
+// в Val1 прописывается номер роли НПЦ которые будут говорить, должно быть отличным от ноля
+// если скрипт только на одно использование - в Val2 - нужно указать любое значение, это может использоваться для охраняемых предметов, например оружия
+#define STR_DONTOUCH    ( 540 )
+
+
+void _GuardedItemInit( Item& item, bool firstTime )
+{
+    item.SetEvent( ITEM_EVENT_SKILL, "_GuardedItemSkill" );
+}
+
+bool _GuardedItemSkill( Item& item, Critter& cr, int skill )
+{
+    Map@ map = cr.GetMap();
+    if( !valid( map ) )
+        return false;
+    int  role = item.Val1;
+    bool reset = ( item.Val2 > 0 ? true : false );
+    if( cr.IsPlayer() )
+    {
+        uint guards = map.GetNpcCount( role, FIND_LIFE | FIND_ONLY_NPC );
+        if( guards == 0 )
+        {
+            if( reset )
+            {
+                item.SetEvent( ITEM_EVENT_SKILL, "" );
+                item.SetScript( null );
+            }
+            if( item.GetType() == ITEM_TYPE_DOOR || item.GetType() == ITEM_TYPE_CONTAINER )
+            {
+                if( item.Val0 > 0 )
+                    CreateTimeEvent( __FullSecond + REAL_MINUTE( item.Val0 == 0 ? 2 : item.Val0 ), "e_AutoCloseDoor", item.Id, true );
+            }
+            return false;
+        }
+        Critter@ guard = map.GetNpc( role, FIND_LIFE | FIND_ONLY_NPC, Random( 0, guards - 1 ) );
+        if( valid( guard ) )
+        {
+            GameVar@ counter = GetUnicumVar( UVAR_guarded_item_skill, guard.Id, cr.Id );
+            if( valid( counter ) )
+            {
+                if( counter < 2 )
+                {
+                    NpcPlane@[] planes;
+                    if( guard.GetPlanes( AI_PLANE_ATTACK, planes ) > 0 )
+                    {
+                        for( uint i = 0, l = planes.length(); i < l; i++ )
+                        {
+                            if( planes[ i ].Attack_TargId == cr.Id )
+                            {
+                                if( reset )
+                                {
+                                    item.SetEvent( ITEM_EVENT_SKILL, "" );
+                                    item.SetScript( null );
+                                }
+                                return false;
+                            }
+                        }
+                    }
+                    counter = counter.GetValue() + 1;
+                    guard.SayMsg( SAY_SHOUT, TEXTMSG_TEXT, STR_DONTOUCH, "$pname" + GetPlayerName( cr.Id ) );
+                }
+                else
+                {
+                    counter = 0;
+                    AddAttackPlane( guard, 0, cr );
+                }
+            }
+        }
+        return true;
+    }
+    else
+    {
+        // Нпц такие двери открыть тоже не смогут
+        return true;
+    }
+}

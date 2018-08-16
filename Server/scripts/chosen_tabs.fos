@@ -1,0 +1,109 @@
+// Author: cvet
+// Server and client stuff for radio
+#include "_macros.fos"
+#include "_client_defines.fos"
+#include "_colors.fos"
+#include "_msgstr.fos"
+#include "sprite.fos"
+#include "gui_h.fos"
+
+import int GetIniValue( string& iniKey, int defaultValue ) from "ini_parser";
+import int[] @ GetIniValues2( string & iniKey, int[] @ defaultValues ) from "ini_parser";
+import bool Critter_IsOverweight( CritterCl& cr ) from "parameters";
+import bool Critter_IsInjured( CritterCl& cr ) from "parameters";
+import bool Critter_IsAddicted( CritterCl& cr ) from "parameters";
+
+Sprite TabPic;
+int[]  Position;
+int    StepX;
+int    StepY;
+bool   LevelUp;
+int    CurTab;
+
+
+void InitChosenTabs() // Export
+{
+    TabPic.LoadByIni( "ChosenTabPic", PT_ART_INTRFACE );
+    Position = GetIniValues2( "ChosenTab", null );
+    StepX = GetIniValue( "ChosenTabStepX", 0 );
+    StepY = GetIniValue( "ChosenTabStepY", 5 );
+    if( StepX != 0 )
+        StepX += TabPic.Width;
+    if( StepY != 0 )
+        StepY += TabPic.Height;
+    LevelUp = false;
+    CurTab = 0;
+}
+
+void SetChosenTabLevelUp( bool enable ) // Export
+{
+    LevelUp = enable;
+}
+
+void DrawChosenTabs() // Export
+{
+    if( GUI_GetActiveMainScreen().Index != CLIENT_MAIN_SCREEN_GAME )
+        return;
+
+    CritterCl@ chosen = GetChosen();
+    if( not valid( chosen ) )
+        return;
+
+    if( LevelUp && ( GUI_GetActiveMainScreen().Index != CLIENT_MAIN_SCREEN_GAME ||
+                     GUI_GetActiveScreen().Index == CLIENT_SCREEN_CHARACTER ||
+                     GUI_GetActiveScreen().Index == CLIENT_SCREEN_PERK ) )
+        LevelUp = false;
+
+    CurTab = 0;
+
+    if( chosen.Mode[ MODE_HIDE ] != 0 )
+        DrawTab( GetMsgStr( TEXTMSG_GAME, STR_HIDEMODE_TITLE ), COLOR_DGREEN );
+		
+    if( chosen.Mode[ MODE_NO_RUN ] == 2 )
+        DrawTab( "Перезарядка", COLOR_DGREEN );
+
+    if( chosen.Param[ CR_IN_ACTION ] != 0 )
+        DrawTab( "Ожидайте...", COLOR_SAND );
+		
+    if( LevelUp )
+        DrawTab( GetMsgStr( TEXTMSG_GAME, STR_LEVELUP_TITLE ), COLOR_DGREEN );
+
+    if( Critter_IsOverweight( chosen ) )
+        DrawTab( GetMsgStr( TEXTMSG_GAME, STR_OVERWEIGHT_TITLE ), COLOR_DRED );
+
+    if( chosen.Damage[ DAMAGE_POISONED ] != 0 )
+        DrawTab( GetMsgStr( TEXTMSG_GAME, STR_POISONED_TITLE ), COLOR_DRED );
+
+    if( chosen.Damage[ DAMAGE_RADIATED ] != 0 )
+        DrawTab( GetMsgStr( TEXTMSG_GAME, STR_RADIATED_TITLE ), COLOR_DRED );
+
+    if( Critter_IsInjured( chosen ) )
+        DrawTab( GetMsgStr( TEXTMSG_GAME, STR_INJURED_TITLE ), COLOR_DRED );
+
+    if( Critter_IsAddicted( chosen ) )
+        DrawTab( GetMsgStr( TEXTMSG_GAME, STR_ADDICTED_TITLE ), COLOR_DRED );
+
+    if( chosen.Timeout[ TO_TRANSFER ] > 0 )
+        DrawTab( GetMsgStr( TEXTMSG_GAME, STR_TIMEOUT_TITLE ), chosen.Timeout[ TO_TRANSFER ] / 1000, COLOR_DRED );
+
+    if( IsTurnBased() && chosen.IsTurnBasedTurn() )
+        DrawTab( GetMsgStr( TEXTMSG_GAME, STR_YOU_TURN_TITLE ), GetTurnBasedTime() / 1000, COLOR_DGREEN );
+
+    if( IsTurnBased() && !chosen.IsTurnBasedTurn() )
+        DrawTab( GetMsgStr( TEXTMSG_GAME, STR_TURN_BASED_TITLE ), COLOR_DGREEN );
+}
+
+void DrawTab( string@ text, uint color )
+{
+    TabPic.Draw( Position[ 0 ] + CurTab * StepX, Position[ 1 ] + CurTab * StepY );
+    DrawText( text, Position[ 0 ] + CurTab * StepX, Position[ 1 ] + CurTab * StepY, TabPic.Width, TabPic.Height, color, FONT_FALLOUT, FT_CENTERXY );
+    CurTab++;
+}
+
+void DrawTab( string@ text, int value, uint color )
+{
+    text = ReplaceText( text, "VALUE", value );
+    TabPic.Draw( Position[ 0 ] + CurTab * StepX, Position[ 1 ] + CurTab * StepY );
+    DrawText( text, Position[ 0 ] + CurTab * StepX, Position[ 1 ] + CurTab * StepY, TabPic.Width, TabPic.Height, color, FONT_FALLOUT, FT_CENTERXY );
+    CurTab++;
+}

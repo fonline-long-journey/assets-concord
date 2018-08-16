@@ -1,0 +1,100 @@
+// lockers script
+// pm
+
+#include "_macros.fos"
+
+#define _LockerIsOpen    # (door) ( ( door.LockerCondition & LOCKER_ISOPEN ) != 0 )
+
+#define KEY_MIN          ( 10000 )
+#define KEY_MAX          ( 20000 )
+
+void KeyUseScreen( Critter& player, uint answerI, string& answerS )
+{
+    if( answerS.length() != 0 )
+    {
+        Item @ key = GetItem( player.StatBase[ ST_VAR0 ] );
+        if( key is null )
+            return;
+        key.SetLexems( answerS );
+        key.Update();
+    }
+}
+
+void _LockerInit( Item& item, bool firstTime )
+{
+    item.SetEvent( ITEM_EVENT_USE, "e_LockerKeyUse" );
+}
+
+bool e_LockerKeyUse( Item& item, Critter& cr, Critter@ onCritter, Item@ onItem, Scenery@ onScenery )
+{
+    if( onItem !is null )
+    {
+        if( ( onItem.GetType() == ITEM_TYPE_DOOR || ItemLockedCont( onItem ) ) && onItem.Val9 == 0 )
+        {
+            if( !_LockerIsOpen( onItem ) )
+            {
+                if( !FLAG( onItem.LockerCondition, LOCKER_LOCKED ) && onItem.LockerComplexity == 0 )
+                {
+                    uint16 keyNumber = Random( KEY_MIN, KEY_MAX );
+                    Item @ key = cr.AddItem( PID_KEY, 1 );
+                    if( key is null )
+                        return false;
+
+                    SETFLAG( onItem.LockerCondition, LOCKER_LOCKED );
+                    onItem.LockerComplexity = item.Proto.Lock_Complexity;
+                    onItem.LockerId = keyNumber;
+                    onItem.Val9 = item.GetProtoId();
+                    cr.StatBase[ ST_VAR0 ] = key.Id;
+                    cr.ShowScreen( SCREEN_SAY, 0, "lock@KeyUseScreen" );
+
+                    key.LockerId = keyNumber;
+                    item.Update();
+
+                    item.SetLexems( "unnamed key" );
+                    DeleteItem( item );
+                    cr.Say( SAY_NETMSG, "You lock the door." );
+
+                    return true;
+                }
+                cr.Say( SAY_NETMSG, "Door probably locked" );
+            }
+        }
+    }
+    return false;
+}
+
+bool ItemLockedCont( Item& item )
+{
+    if( item.GetType() == ITEM_TYPE_CONTAINER )
+    {
+        uint16 proto = item.GetProtoId();
+        if( 41 < proto && proto < 46 )
+        {
+            return true;
+        }
+        if( 127 < proto && proto < 140 )
+        {
+            return true;
+        }
+        if( 180 < proto && proto < 190 )
+        {
+            return true;
+        }
+        if( 366 < proto && proto < 371 )
+        {
+            return true;
+        }
+        switch( proto )
+        {
+        case 245:
+            return true;
+        case 501:
+            return true;
+        case 502:
+            return true;
+        case 521:
+            return true;
+        }
+    }
+    return false;
+}

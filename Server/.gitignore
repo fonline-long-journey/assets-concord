@@ -1,0 +1,17 @@
+# Trash
+logs/
+save/
+FOnlineServer.cfg
+*.log
+
+
+# Compiled data
+ scripts\*.fosb
+ *.fosb
+ scripts\*.fosp
+ *.fosp
+ maps\*.fomapb
+ *.fomapb
+ logs\DeadLog.txt
+ logs\GmLog.txt
+

@@ -1,0 +1,43 @@
+Starting FOnline (version 476)...
+Engine initialization...
+Sprite manager initialization...
+Sprite manager initialization complete.
+Sound manager initialization...
+Sound manager initialization complete.
+Connecting to server<localhost:4000>.
+Connection established.
+Disconnect. Session traffic: send<90>, receive<1115473>, whole<1115563>, receive real<1435548>.
+Loaded<133> critter types.
+Load scripts...
+Bind reserved functions...
+Bind reserved functions complete.
+Load scripts complete.
+3d rendering is disabled.
+Interface initialization...
+Signature<IntMess> not found.
+Signature<IntMessLarge> not found.
+Interface initialization complete.
+Item manager initialization...
+Item manager initialization complete.
+Hex field initialization...
+Hex field initialization complete.
+Engine initialization complete.
+FOClient::PlayVideo - Video file<video\TheLifeAfterIntro.ogv> not found.
+FOClient::PlayVideo - Video file<video\TheLifeAfterIntroSlide.ogv> not found.
+Connecting to server<localhost:4000>.
+Connection established.
+Disconnect. Session traffic: send<100>, receive<1165235>, whole<1165335>, receive real<1691376>.
+Connecting to server<localhost:4000>.
+Connection established.
+Authentication success.
+Change map...
+Get hash of map, pid<417>...complete.
+Get map...417...New: Tiles Walls Scenery Old:. Map saved.
+Change map...
+Get hash of map, pid<417>...complete.
+Load map...Load map success.
+Local map loaded.
+Chosen parameters...complete.
+Quests...Complete.
+Entering to game complete.
+Exit from game.

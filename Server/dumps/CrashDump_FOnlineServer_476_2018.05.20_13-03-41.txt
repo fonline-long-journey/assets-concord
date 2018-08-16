@@ -1,0 +1,158 @@
+Application
+	Name        FOnlineServer
+	Version     476
+	OS          6.2.9200 ()
+	Timestamp   2018.05.20 13:03:41
+
+Exception
+	Code      EXCEPTION_ACCESS_VIOLATION
+	Address   0x005F1C52
+	Flags     0x0
+	Info      Attempted to read to an 0x10D57000
+
+Thread 'GUI' (12348, current)
+	FOnlineServer, Fl_Text_Display::handle_vline + 290, fl_text_display.cxx (1739)
+	FOnlineServer, Fl_Text_Display::draw_vline + 217, fl_text_display.cxx (1890)
+	FOnlineServer, Fl_Text_Display::draw_text + 198, fl_text_display.cxx (466)
+	FOnlineServer, Fl_Text_Display::draw + 2143, fl_text_display.cxx (3441)
+	FOnlineServer, Fl_Group::update_child + 160, fl_group.cxx (756)
+	FOnlineServer, Fl_Group::draw_children + 373, fl_group.cxx (730)
+	FOnlineServer, Fl_Window::draw + 94, fl_window.cxx (139)
+	FOnlineServer, Fl_Window::flush + 70, fl.cxx (1703)
+	FOnlineServer, Fl::flush + 140, fl.cxx (741)
+	FOnlineServer, fl_wait + 836, fl_win32.cxx (424)
+	FOnlineServer, Fl::wait + 23, fl.cxx (454)
+	FOnlineServer, Fl::wait + 33, fl.cxx (598)
+	FOnlineServer, main + 1209, mainserver.cpp (210)
+	FOnlineServer, WinMain + 402, fl_call_main.c (115)
+	FOnlineServer, __tmainCRTStartup + 282, crt0.c (275)
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'Unknown' (10756)
+	ntdll, ZwWaitForWorkViaWorkerFactory + 12
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'Unknown' (12676)
+	ntdll, ZwWaitForWorkViaWorkerFactory + 12
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'Unknown' (9576)
+	ntdll, ZwWaitForWorkViaWorkerFactory + 12
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'Unknown' (8524)
+	ntdll, ZwWaitForWorkViaWorkerFactory + 12
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'Unknown' (12148)
+	ntdll, ZwWaitForWorkViaWorkerFactory + 12
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'Unknown' (4432)
+	ntdll, NtWaitForMultipleObjects + 12
+	combase, Ordinal122 + 4045
+	combase, HWND_UserSize + 846
+	combase, Ordinal122 + 3629
+	combase, Ordinal120 + 303
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'GUIUpdate' (8552)
+	ntdll, NtDelayExecution + 12
+	KERNELBASE, Sleep + 15
+	FOnlineServer, Thread::Sleep + 13, common.cpp (1638)
+	FOnlineServer, GUIUpdate + 17, mainserver.cpp (525)
+	FOnlineServer, ThreadBeginExecution + 44, common.cpp (1546)
+	FOnlineServer, ptw32_threadStart + 119, ptw32_threadstart.c (225)
+	FOnlineServer, _callthreadstartex + 27, threadex.c (314)
+	FOnlineServer, _threadstartex + 100, threadex.c (292)
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'ScriptTimeout' (11156)
+	ntdll, NtDelayExecution + 12
+	KERNELBASE, Sleep + 15
+	FOnlineServer, Thread::Sleep + 13, common.cpp (1638)
+	FOnlineServer, RunTimeout + 1400, script.cpp (1225)
+	FOnlineServer, ThreadBeginExecution + 44, common.cpp (1546)
+	FOnlineServer, ptw32_threadStart + 119, ptw32_threadstart.c (225)
+	FOnlineServer, _callthreadstartex + 27, threadex.c (314)
+	FOnlineServer, _threadstartex + 100, threadex.c (292)
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Loaded modules
+	E:\Games\Fonline\MyFonline\Server\FOnlineServer.exe (00400000)
+	C:\WINDOWS\SYSTEM32\ntdll.dll (76F80000)
+	C:\WINDOWS\System32\KERNEL32.DLL (74850000)
+	C:\WINDOWS\System32\KERNELBASE.dll (74B70000)
+	C:\WINDOWS\System32\USER32.dll (74FC0000)
+	C:\WINDOWS\System32\win32u.dll (74E50000)
+	C:\WINDOWS\System32\GDI32.dll (74240000)
+	C:\WINDOWS\System32\gdi32full.dll (73D60000)
+	C:\WINDOWS\System32\msvcp_win.dll (740D0000)
+	C:\WINDOWS\System32\ucrtbase.dll (73C20000)
+	C:\WINDOWS\System32\ADVAPI32.dll (75300000)
+	C:\WINDOWS\System32\msvcrt.dll (74150000)
+	C:\WINDOWS\System32\sechost.dll (74800000)
+	C:\WINDOWS\System32\RPCRT4.dll (75140000)
+	C:\WINDOWS\System32\SspiCli.dll (739A0000)
+	C:\WINDOWS\System32\CRYPTBASE.dll (73990000)
+	C:\WINDOWS\System32\bcryptPrimitives.dll (76900000)
+	C:\WINDOWS\System32\WS2_32.dll (75290000)
+	C:\WINDOWS\System32\PSAPI.DLL (73EC0000)
+	C:\WINDOWS\System32\SHELL32.dll (75380000)
+	C:\WINDOWS\SYSTEM32\dbghelp.dll (73070000)
+	C:\WINDOWS\SYSTEM32\WINMM.dll (72070000)
+	C:\WINDOWS\WinSxS\x86_microsoft.windows.common-controls_6595b64144ccf1df_5.82.16299.125_none_d02560fb5f387566\COMCTL32.dll (586D0000)
+	C:\WINDOWS\System32\cfgmgr32.dll (74ED0000)
+	C:\WINDOWS\System32\shcore.dll (73B90000)
+	C:\WINDOWS\SYSTEM32\winmmbase.dll (71780000)
+	C:\WINDOWS\System32\combase.dll (74920000)
+	C:\WINDOWS\System32\windows.storage.dll (769B0000)
+	C:\WINDOWS\System32\shlwapi.dll (73ED0000)
+	C:\WINDOWS\System32\kernel.appcore.dll (73D50000)
+	C:\WINDOWS\System32\powrprof.dll (76960000)
+	C:\WINDOWS\System32\profapi.dll (740B0000)
+	C:\WINDOWS\System32\ole32.dll (74D50000)
+	C:\WINDOWS\SYSTEM32\dbgcore.DLL (73040000)
+	C:\WINDOWS\System32\IMM32.DLL (74210000)
+	C:\WINDOWS\system32\uxtheme.dll (718A0000)
+	C:\WINDOWS\System32\MSCTF.dll (746B0000)
+	C:\WINDOWS\System32\OLEAUT32.dll (74F20000)
+	c:\program files (x86)\nvidia corporation\nvstreamsrv\nvinject.dll (70B80000)
+	C:\WINDOWS\system32\dwmapi.dll (716A0000)
+	C:\WINDOWS\System32\TextInputFramework.dll (69500000)
+	C:\WINDOWS\System32\CoreUIComponents.dll (6D720000)
+	C:\WINDOWS\System32\CoreMessaging.dll (6D960000)
+	C:\WINDOWS\SYSTEM32\ntmarta.dll (721C0000)
+	C:\WINDOWS\SYSTEM32\wintypes.dll (6D650000)
+	C:\WINDOWS\System32\clbcatq.dll (75200000)
+	C:\WINDOWS\system32\dataexchange.dll (6BA50000)
+	C:\WINDOWS\system32\d3d11.dll (6B300000)
+	C:\WINDOWS\system32\dcomp.dll (6B950000)
+	C:\WINDOWS\system32\dxgi.dll (710B0000)
+	C:\WINDOWS\system32\twinapi.appcore.dll (6B1C0000)
+	C:\WINDOWS\system32\RMCLIENT.dll (6B1A0000)
+	C:\WINDOWS\system32\bcrypt.dll (72F80000)
+	C:\WINDOWS\system32\msimtf.dll (67AA0000)
+	E:\Games\Fonline\MyFonline\Server\scripts\fonline_tla.dll (67A90000)
+	E:\Games\Fonline\MyFonline\Server\scripts\fonline_test.dll (58430000)
+
+AngelScript
+	Not available

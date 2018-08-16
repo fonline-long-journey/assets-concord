@@ -1,0 +1,20 @@
+# 3.1.8
+
+[Proto]
+ProtoId=4000
+Type=11
+PicMap=art\scenery\coffin07.frm
+PicInv=art\inven\reserved.frm
+Corner=5
+Flags=33554456
+DisableEgg=1
+SoundId=48
+
+[Proto]
+ProtoId=4101
+PicMap=art\items\box2.frm
+PicInv=art\inven\mask.png
+Flags=134217756
+Weight=1886
+Volume=2
+

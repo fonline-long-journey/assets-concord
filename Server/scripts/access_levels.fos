@@ -1,0 +1,63 @@
+#include "_defines.fos"
+#include "_macros.fos"
+
+dictionary accessLevels;
+
+void loadAccessLevels(){
+	file f;
+	accessLevels.deleteAll();
+    if(f.open( "accessLevels/AccessLevels.txt", "r" ) != 0 )
+    {
+        return;
+    }
+	string@ line = "";
+	string@[] res;
+	int accessLevel = 0;
+	line = f.readLine();
+	while(line.length() > 0){
+		line = substring(line, 0, line.length() - 1);
+		res = split(line, "#");
+		StrToInt( res[1], accessLevel);
+		accessLevels.set(res[0], accessLevel);
+		line = f.readLine();
+	}
+	f.close();
+	Log("Было загружено: " + accessLevels.getSize() + " уровней доступа");
+}
+
+void saveAccessLevels(){
+	string[] ids = accessLevels.getKeys();
+    file f;
+
+    if( !( f.open( "accessLevels/AccessLevels.txt", "w" ) >= 0 ) )
+    {
+        Log( "Ошибка создания файла AccessLevels.txt");
+        return;
+    }
+
+    uint access;
+    f.setPos( 0 );
+
+	for( uint i = 0; i < ids.length(); i++ )
+    {
+		accessLevels.get(ids[i], access);
+		f.writeString(ids[i] + "#" + access + "\n");
+    }
+
+    f.close();
+}
+
+uint getAccessLevel(string@ hardId){
+	uint accessLevel = 0;
+	if(!accessLevels.exists(hardId)){
+		setAccessLevel(hardId, UNKNOWN);
+	}
+	
+	accessLevels.get(hardId, accessLevel);
+	return accessLevel;
+}
+
+void setAccessLevel(string@ hardId, uint accessLevel){
+	accessLevels.set(hardId, accessLevel);
+	saveAccessLevels();
+}

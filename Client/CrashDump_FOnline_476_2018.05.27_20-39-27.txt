@@ -1,0 +1,188 @@
+Application
+	Name        FOnline
+	Version     476
+	OS          6.2.9200 ()
+	Timestamp   2018.05.27 20:39:27
+
+Exception
+	Code      EXCEPTION_ACCESS_VIOLATION
+	Address   0x00438840
+	Flags     0x0
+	Info      Attempted to read to an 0x00000000
+
+Thread 'Main' (9168, current)
+	FOnline, ScriptString::assign + 16, scriptstring.cpp (140)
+	FOnline, ScriptString::Create + 24, scriptstring.cpp (101)
+	FOnline, FOClient::AddMess + 42, clientinterface.cpp (3001)
+	FOnline, FOClient::LMenuTryCreate + 342, clientinterface.cpp (4379)
+	FOnline, FOClient::MainLoop + 2600, client.cpp (1128)
+	FOnline, SDL_main + 935, mainclient.cpp (156)
+	FOnline, main + 21, sdl_windows_main.c (140)
+	FOnline, WinMain + 117, sdl_windows_main.c (177)
+	FOnline, __tmainCRTStartup + 282, crt0.c (275)
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'Unknown' (6000)
+	ntdll, NtWaitForSingleObject + 12
+	KERNELBASE, WaitForSingleObject + 18
+	nvoglv32, DrvValidateVersion + 31263
+	nvoglv32, (function-name not available) + 0
+	nvoglv32, (function-name not available) + 0
+	nvoglv32, DrvValidateVersion + 38551
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'Unknown' (7012)
+	ntdll, NtWaitForMultipleObjects + 12
+	KERNELBASE, WaitForMultipleObjects + 24
+	nvoglv32, DrvPresentBuffers + 35957
+	nvoglv32, DrvPresentBuffers + 34380
+	nvoglv32, vk_optimusGetInstanceProcAddr + 466424
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'Unknown' (8452)
+	ntdll, NtWaitForMultipleObjects + 12
+	KERNELBASE, WaitForMultipleObjects + 24
+	nvoglv32, DrvPresentBuffers + 154214
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'Unknown' (7420)
+	win32u, NtUserMsgWaitForMultipleObjectsEx + 12
+	USER32, MsgWaitForMultipleObjectsEx + 61
+	USER32, MsgWaitForMultipleObjects + 32
+	nvoglv32, DrvValidateVersion + 13477
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'Unknown' (13468)
+	ntdll, ZwWaitForWorkViaWorkerFactory + 12
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'Unknown' (13056)
+	ntdll, NtWaitForMultipleObjects + 12
+	KERNELBASE, WaitForMultipleObjects + 24
+	XAudio2_7, DllUnregisterServer + 37136
+	XAudio2_7, DllUnregisterServer + 32800
+	XAudio2_7, DllUnregisterServer + 37339
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'Unknown' (6716)
+	ntdll, NtWaitForSingleObject + 12
+	KERNELBASE, WaitForSingleObject + 18
+	FOnline, XAUDIO2_WaitDevice + 33, sdl_xaudio2.c (185)
+	FOnline, SDL_RunAudio + 299, sdl_audio.c (502)
+	FOnline, SDL_RunThread + 54, sdl_thread.c (282)
+	FOnline, RunThread + 19, sdl_systhread.c (85)
+	FOnline, RunThreadViaBeginThreadEx + 11, sdl_systhread.c (101)
+	FOnline, _callthreadstartex + 27, threadex.c (314)
+	FOnline, _threadstartex + 100, threadex.c (292)
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Thread 'ScriptTimeout' (11180)
+	ntdll, NtDelayExecution + 12
+	KERNELBASE, Sleep + 15
+	FOnline, Thread::Sleep + 13, common.cpp (1638)
+	FOnline, RunTimeout + 29, script.cpp (1142)
+	FOnline, ThreadBeginExecution + 44, common.cpp (1546)
+	FOnline, ptw32_threadStart + 119, ptw32_threadstart.c (225)
+	FOnline, _callthreadstartex + 27, threadex.c (314)
+	FOnline, _threadstartex + 100, threadex.c (292)
+	KERNEL32, BaseThreadInitThunk + 36
+	ntdll, RtlGetAppContainerNamedObjectPath + 311
+	ntdll, RtlGetAppContainerNamedObjectPath + 263
+
+Loaded modules
+	E:\Games\Fonline\MyFonline\Client\FOnline.exe (00400000)
+	C:\WINDOWS\SYSTEM32\ntdll.dll (77C60000)
+	C:\WINDOWS\System32\KERNEL32.DLL (771A0000)
+	C:\WINDOWS\System32\KERNELBASE.dll (76440000)
+	C:\WINDOWS\System32\USER32.dll (76120000)
+	C:\WINDOWS\System32\win32u.dll (75EB0000)
+	C:\WINDOWS\System32\GDI32.dll (77840000)
+	C:\WINDOWS\System32\gdi32full.dll (768D0000)
+	C:\WINDOWS\System32\msvcp_win.dll (76A30000)
+	C:\WINDOWS\System32\ucrtbase.dll (75B90000)
+	C:\WINDOWS\System32\ADVAPI32.dll (77060000)
+	C:\WINDOWS\System32\msvcrt.dll (74770000)
+	C:\WINDOWS\System32\sechost.dll (76820000)
+	C:\WINDOWS\System32\RPCRT4.dll (77A90000)
+	C:\WINDOWS\System32\SspiCli.dll (74680000)
+	C:\WINDOWS\System32\CRYPTBASE.dll (74670000)
+	C:\WINDOWS\System32\bcryptPrimitives.dll (770F0000)
+	C:\WINDOWS\System32\WS2_32.dll (746A0000)
+	C:\WINDOWS\System32\IMM32.dll (76410000)
+	C:\WINDOWS\System32\combase.dll (75ED0000)
+	C:\WINDOWS\System32\PSAPI.DLL (77190000)
+	C:\WINDOWS\System32\SHELL32.dll (74850000)
+	C:\WINDOWS\System32\cfgmgr32.dll (77150000)
+	C:\WINDOWS\SYSTEM32\WINMM.dll (72D30000)
+	C:\WINDOWS\SYSTEM32\VERSION.dll (73C80000)
+	C:\WINDOWS\SYSTEM32\OPENGL32.dll (5CCC0000)
+	C:\WINDOWS\System32\shcore.dll (75E20000)
+	C:\WINDOWS\System32\windows.storage.dll (77270000)
+	C:\WINDOWS\SYSTEM32\dbghelp.dll (73D50000)
+	C:\WINDOWS\System32\shlwapi.dll (75D60000)
+	C:\WINDOWS\SYSTEM32\IPHLPAPI.DLL (73AB0000)
+	C:\WINDOWS\System32\kernel.appcore.dll (76C20000)
+	C:\WINDOWS\SYSTEM32\WINMMBASE.dll (72400000)
+	C:\WINDOWS\System32\powrprof.dll (75DB0000)
+	C:\WINDOWS\System32\profapi.dll (74830000)
+	C:\WINDOWS\SYSTEM32\GLU32.dll (5D100000)
+	C:\WINDOWS\System32\ole32.dll (77B50000)
+	C:\WINDOWS\System32\OLEAUT32.dll (76630000)
+	C:\WINDOWS\SYSTEM32\dbgcore.DLL (73D20000)
+	C:\WINDOWS\System32\NSI.dll (77C50000)
+	C:\WINDOWS\SYSTEM32\dhcpcsvc.DLL (73A70000)
+	C:\WINDOWS\system32\uxtheme.dll (72430000)
+	C:\WINDOWS\System32\MSCTF.dll (766D0000)
+	c:\program files (x86)\nvidia corporation\nvstreamsrv\nvinject.dll (6F490000)
+	C:\WINDOWS\system32\dwmapi.dll (724B0000)
+	C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_38c9bee769f9ef1f\nvoglv32.dll (5A950000)
+	C:\WINDOWS\System32\SETUPAPI.dll (76C30000)
+	C:\WINDOWS\SYSTEM32\WTSAPI32.dll (72750000)
+	C:\WINDOWS\SYSTEM32\DEVOBJ.dll (71E10000)
+	C:\WINDOWS\System32\WINTRUST.dll (75CB0000)
+	C:\WINDOWS\System32\MSASN1.dll (76620000)
+	C:\WINDOWS\System32\CRYPT32.dll (77900000)
+	C:\WINDOWS\SYSTEM32\ntmarta.dll (72E30000)
+	C:\WINDOWS\system32\nvspcap.dll (5DBC0000)
+	C:\WINDOWS\SYSTEM32\WINSTA.dll (71130000)
+	C:\WINDOWS\System32\clbcatq.dll (76AB0000)
+	C:\WINDOWS\SYSTEM32\TextInputFramework.dll (6CB10000)
+	C:\WINDOWS\SYSTEM32\CoreUIComponents.dll (6EA20000)
+	C:\WINDOWS\SYSTEM32\CoreMessaging.dll (6F3E0000)
+	C:\WINDOWS\SYSTEM32\wintypes.dll (6E950000)
+	C:\WINDOWS\System32\XAudio2_7.dll (5CB90000)
+	C:\WINDOWS\System32\MMDevApi.dll (6D4B0000)
+	C:\WINDOWS\System32\PROPSYS.dll (70120000)
+	C:\WINDOWS\SYSTEM32\AUDIOSES.DLL (6ECB0000)
+	C:\WINDOWS\SYSTEM32\AVRT.dll (70B90000)
+	C:\Windows\System32\Windows.UI.dll (6B140000)
+	C:\WINDOWS\system32\napinsp.dll (71F10000)
+	C:\WINDOWS\system32\pnrpnsp.dll (71EF0000)
+	C:\WINDOWS\system32\NLAapi.dll (71ED0000)
+	C:\WINDOWS\System32\mswsock.dll (73CC0000)
+	C:\WINDOWS\SYSTEM32\DNSAPI.dll (72500000)
+	C:\WINDOWS\System32\winrnr.dll (723C0000)
+	C:\WINDOWS\System32\fwpuclnt.dll (71DB0000)
+	C:\WINDOWS\SYSTEM32\bcrypt.dll (73C60000)
+	C:\Windows\System32\rasadhlp.dll (72720000)
+	E:\Games\Fonline\MyFonline\Client\data\cache\scripts.fonline_tla_client.dll (5D0E0000)
+
+AngelScript
+	0) client_main : string critter_description(CritterCl&inout cr, int lookType) : 19784, 1
+

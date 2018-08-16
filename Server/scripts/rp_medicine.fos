@@ -1,0 +1,418 @@
+#include "_macros.fos"
+#include "_colors.fos"
+
+import bool inCombat(Critter& cr) from "rp_utils";
+import bool processAction(Critter@ cr, Critter@ target, Item@ item,  uint time, uint rate, string@ funcName) from "rp_utils";
+import void endAction(Critter@ cr, Critter@ target, uint itemPid, bool removeItem) from "rp_utils";
+import void FlushScreen( Critter& cr, uint fromColor, uint toColor, uint timeMs ) from "effects";
+
+void _bloodTransferKit(Item& item, bool firstTime){
+	item.SetEvent(ITEM_EVENT_USE, "e_BloodTransferfKitUse");
+}
+
+void _emptyBloodBag(Item& item, bool firstTime){
+	item.SetEvent(ITEM_EVENT_USE, "e_EmptyBloodBagUse");
+}
+
+void _fullBloodBag(Item& item, bool firstTime){
+	item.SetEvent(ITEM_EVENT_USE, "e_FullBloodBagUse");
+}
+
+bool e_BloodTransferfKitUse(Item& item, Critter& crit, Critter@ onCritter, Item@ onItem, Scenery@ onScenery)
+{
+	uint time = REAL_SECOND(10);
+	string@ func = "rp_medicine@cte_TranferBlood";
+	
+	if(!valid(onCritter)){
+		crit.Say(SAY_NETMSG, "Нельзя перелить кровь самому себе");
+		return true;
+	}
+	
+	if(processAction(crit, onCritter, item, time, 0, func)){
+		crit.Say(SAY_EMOTE, "Начинает переливание крови");
+		crit.ParamBase[CR_PAIN] += 40;
+		onCritter.ParamBase[CR_PAIN] += 40;
+	}
+	return true;
+}
+
+uint cte_TranferBlood( Critter& cr, int identifier, uint& rate){
+	Critter@ target = GetCritter(rate);
+
+	if(cr.Param[CR_BLOOD] <= 1000){
+		cr.Say(SAY_NETMSG, "Давления крови не хватает чтобы продолжить переливание.");
+		endAction(cr, null, PID_BLOOD_TRANSFUNCTION_KIT, false);
+		return 0;
+	}else{
+		cr.Say(SAY_EMOTE_ON_HEAD, "Переливает кровь пациенту.");
+		cr.ParamBase[CR_BLOOD] -= 50 + Random(0, 5);
+		target.ParamBase[CR_BLOOD] += 50 - Random(0, 5);
+	}
+	
+	//endAction(cr, null, PID_BLOOD_TRANSFUNCTION_KIT, false);
+	return REAL_SECOND( 4 );
+}
+
+bool e_EmptyBloodBagUse(Item& item, Critter& crit, Critter@ onCritter, Item@ onItem, Scenery@ onScenery)
+{
+	uint time = REAL_SECOND(CLAMP(300 - crit.Param[SK_DOCTOR], 120, 300));
+	string@ func = valid(onCritter) ? "rp_medicine@cte_fillBloodBagSomeone" : "rp_medicine@cte_fillBloodBagSelf";
+	
+	if(processAction(crit, onCritter, item, time, 0, func)){
+		if(valid(onCritter)){
+			crit.Say(SAY_EMOTE, "Распаковывает набор для переливания крови, и наполняет пакет");
+			onCritter.ParamBase[CR_PAIN] += 40;
+		}else{
+			crit.Say(SAY_EMOTE, "Распаковывает набор для переливания крови, и наполняет пакет из своей руки");
+			crit.ParamBase[CR_PAIN] += 40;
+		}
+	}
+	return true;
+}
+
+uint cte_fillBloodBagSelf( Critter& cr, int identifier, uint& rate){
+	if(cr.Param[CR_BLOOD] <= 2000){
+		cr.Say(SAY_NETMSG, "Давления крови не хватает чтобы наполнить пакет.");
+	}else{
+		cr.Say(SAY_NETMSG, "Вы наполнили пакет своей кровью.");
+		cr.ParamBase[CR_BLOOD] -= 1000 + CLAMP( 400 - cr.Param[SK_DOCTOR], 0, 400);
+		cr.AddItem(PID_FULL_BLOOD_BAG, 1);
+	}
+	
+	endAction(cr, null, PID_EMPTY_BLOOD_BAG, true);
+	return 0;
+}
+
+uint cte_fillBloodBagSomeone( Critter& cr, int identifier, uint& rate){
+	Critter@ target = GetCritter(rate);
+	
+	if(target.Param[CR_BLOOD] <= 2000){
+		cr.Say(SAY_NETMSG, "Давления крови не хватает чтобы наполнить пакет.");
+	}else{
+		cr.Say(SAY_NETMSG, "Вы наполнили пакет кровью пациента.");
+		target.ParamBase[CR_BLOOD] -= 1000 + CLAMP( 200 - cr.Param[SK_DOCTOR], 0, 400);
+		cr.AddItem(PID_FULL_BLOOD_BAG, 1);
+	}
+	
+	endAction(cr, target, PID_EMPTY_BLOOD_BAG, true);
+	return 0;
+}
+
+bool e_FullBloodBagUse(Item& item, Critter& crit, Critter@ onCritter, Item@ onItem, Scenery@ onScenery)
+{
+	uint time = REAL_SECOND(CLAMP(300 - crit.Param[SK_DOCTOR], 120, 300));
+	string@ func = valid(onCritter) ? "rp_medicine@cte_transferBloodBagSomeone" : "rp_medicine@cte_transferBloodBagSelf";
+	
+	if(processAction(crit, onCritter, item, time, 0, func)){
+		if(valid(onCritter)){
+			crit.Say(SAY_EMOTE, "Начинает переливать кровь");
+			onCritter.ParamBase[CR_PAIN] += 40;
+		}else{
+			crit.Say(SAY_EMOTE, "Начинает переливать кровь себе");
+			crit.ParamBase[CR_PAIN] += 40;
+		}
+	}
+	return true;
+}
+
+uint cte_transferBloodBagSelf( Critter& cr, int identifier, uint& rate){
+	cr.Say(SAY_NETMSG, "Вы перелили себе кровь.");
+	cr.ParamBase[CR_BLOOD] += 1000 - CLAMP( 100 - cr.Param[SK_DOCTOR], 0, 400);
+		
+	endAction(cr, null, PID_FULL_BLOOD_BAG, true);
+	return 0;
+}
+
+uint cte_transferBloodBagSomeone( Critter& cr, int identifier, uint& rate){
+	Critter@ target = GetCritter(rate);
+	
+	cr.Say(SAY_NETMSG, "Вы перелили кровь пациенту.");
+	target.ParamBase[CR_BLOOD] += 1000 - CLAMP( 100 - cr.Param[SK_DOCTOR], 0, 400);
+		
+	endAction(cr, target, PID_FULL_BLOOD_BAG, true);
+	return 0;
+}
+
+bool e_NeedleUse(Item& needle, Critter& crit, Critter@ onCritter, Item@ onItem, Scenery@ onScenery)
+{
+	uint time = valid(onCritter) ? REAL_SECOND(CLAMP(180 - crit.Param[SK_DOCTOR], 20, 120)) : REAL_SECOND(CLAMP(150 - crit.Param[SK_DOCTOR], 20, 180));
+	string@ func = valid(onCritter) ? "rp_medicine@cte_needleHealSomeone" : "rp_medicine@cte_needleHealSelf";
+	
+	if(processAction(crit, onCritter, needle, time, 0, func)){
+		if(valid(onCritter)){
+			crit.Say(SAY_EMOTE, "Зашивает рану");
+			onCritter.ParamBase[CR_PAIN] += 30;
+		}else{
+			crit.Say(SAY_EMOTE, "Зашивает рану на себе");
+			crit.ParamBase[CR_PAIN] += 30;
+		}
+	}
+	return true;
+}
+
+bool e_BandageUse(Item& bandage, Critter& crit, Critter@ onCritter, Item@ onItem, Scenery@ onScenery){
+
+	uint time = valid(onCritter) ? REAL_SECOND(CLAMP(150 - crit.Param[SK_FIRST_AID], 10, 100)) : REAL_SECOND(CLAMP(180 - crit.Param[SK_FIRST_AID], 10, 100));
+	string@ func = valid(onCritter) ? "rp_medicine@cte_bandageHealSomeone" : "rp_medicine@cte_bandageHealSelf";
+
+	if(processAction(crit, onCritter, bandage, time, 0, func)){
+		if(valid(onCritter)){
+			crit.Say(SAY_EMOTE, "Бинтует");
+		}else{
+			crit.Say(SAY_EMOTE, "Бинтует себя");
+		}
+	}
+
+	return true;
+}
+
+bool e_AdrenalineUse(Item& shot, Critter& crit, Critter@ onCritter, Item@ onItem, Scenery@ onScenery){
+
+	uint time = REAL_SECOND(CLAMP( 10 - crit.Param[ST_AGILITY], 1, 5));
+	string@ func = valid(onCritter) ? "rp_medicine@cte_AdrenalineShotSomeone" : "rp_medicine@cte_AdrenalineShotSelf";
+
+	if(processAction(crit, onCritter, shot, time, 0, func)){
+		if(valid(onCritter)){
+			crit.Say(SAY_EMOTE, "Вкалывает шприц с адреналином");
+		}else{
+			crit.Say(SAY_EMOTE, "Вкалывает себе шприц с адреналином");
+		}
+	}
+
+	return true;
+}
+
+uint cte_AdrenalineShotSelf( Critter& cr, int identifier, uint& rate){
+	
+	cr.ToDead(ANIM2_DEAD_FRONT, cr);
+	FlushScreen( cr, 0, COLOR_WHITE, 15);
+	FlushScreen( cr, COLOR_WHITE, 0, 2000);
+	
+	endAction(cr, null, PID_ADRENALINE_SHOT, true);
+	return 0;
+}
+
+uint cte_AdrenalineShotSomeone( Critter& cr, int identifier, uint& rate){
+	Critter@ onCritter = GetCritter(rate);
+	Map@ map = onCritter.GetMap();
+
+	if(onCritter.IsLife()){
+		onCritter.ToDead(ANIM2_DEAD_FRONT, cr);
+		FlushScreen( onCritter, 0, COLOR_WHITE, 15);
+		FlushScreen( onCritter, COLOR_WHITE, 0, 2000);
+	}else{
+		if(onCritter.Param[CR_BLOOD] > 1000 && onCritter.Param[CR_INTERNALS_DAMAGE] < 100 && onCritter.Anim2Dead <= ANIM2_DEAD_BACK){
+			if( !map.IsHexPassed( onCritter.HexX, onCritter.HexY ) )
+			{
+				if( map.IsHexPassed( onCritter.HexX + 1, onCritter.HexY ) )
+				{
+					onCritter.TransitToHex( onCritter.HexX + 1, onCritter.HexY, onCritter.Dir );
+				}
+				else if( map.IsHexPassed( onCritter.HexX - 1, onCritter.HexY ) )
+				{
+					onCritter.TransitToHex( onCritter.HexX - 1, onCritter.HexY, onCritter.Dir );
+				}
+				else if( map.IsHexPassed( onCritter.HexX, onCritter.HexY + 1 ) )
+				{
+					onCritter.TransitToHex( onCritter.HexX, onCritter.HexY + 1, onCritter.Dir );
+				}
+				else if( map.IsHexPassed( onCritter.HexX, onCritter.HexY - 1 ) )
+				{
+					onCritter.TransitToHex( onCritter.HexX, onCritter.HexY - 1, onCritter.Dir );
+				}
+				else if( map.IsHexPassed( onCritter.HexX + 1, onCritter.HexY + 1 ) )
+				{
+					onCritter.TransitToHex( onCritter.HexX + 1, onCritter.HexY + 1, onCritter.Dir );
+				}
+				else if( map.IsHexPassed( onCritter.HexX - 1, onCritter.HexY - 1 ) )
+				{
+					onCritter.TransitToHex( onCritter.HexX - 1, onCritter.HexY - 1, onCritter.Dir );
+				}
+			}
+			//if(onCritter.Param[CR_INTERNALS_DAMAGE] >= 100){
+			//	onCritter.ParamBase[CR_INTERNALS_DAMAGE] = 99;
+			//}
+			onCritter.ToLife();
+			onCritter.ToKnockout( KNOCKOUT_ANIM2_DEFAULT( true ), 200, onCritter.HexX, onCritter.HexY );
+			
+			if(onCritter.Param[CR_THIRST] < 10){
+				onCritter.ParamBase[CR_THIRST] = 10;
+			}
+			if(onCritter.Param[CR_HUNGER] < 10){
+				onCritter.ParamBase[CR_HUNGER] = 10;
+			}
+			
+			onCritter.ParamBase[ CR_HEARTBEAT ] = 150;
+			FlushScreen( onCritter, 0, COLOR_WHITE, 15);
+			FlushScreen( onCritter, COLOR_WHITE, 0, 2000);
+		}else
+		{
+			cr.Say( SAY_NETMSG, "Ему уже не поможешь." );
+		}
+	}
+	endAction(cr, onCritter, PID_ADRENALINE_SHOT, true);
+	return 0;
+}
+
+uint cte_needleHealSelf( Critter& cr, int identifier, uint& rate){
+
+	if(cr.ParamBase[CR_BLEEDING] > cr.Param[SK_DOCTOR] * 3){
+		cr.Say(SAY_NETMSG, "Кровотечение слишком сильное, вы ничего не смогли с этим сделать.");
+	}else{
+		cr.Say(SAY_NETMSG, "Вы сшили ранение.");
+		cr.ParamBase[CR_BLEEDING] = 0;
+	}
+	
+	endAction(cr, null, PID_MEDICAL_NEEDLE, true);
+	return 0;
+}
+
+uint cte_needleHealSomeone( Critter& cr, int identifier, uint& rate){
+	Critter@ target = GetCritter(rate);
+	
+	if(target.IsDead() && target.Param[CR_BLEEDING] <= 0 && target.Param[CR_INTERNALS_DAMAGE] >= 100){
+		if( cr.Param[SK_DOCTOR] > 100 + Random(-50, 50)){
+			target.ParamBase[CR_INTERNALS_DAMAGE] = 90;
+			cr.Say(SAY_NETMSG, "Вам удалось исправить фатальные повреждения внутренних органов пациента");
+		}else{
+			cr.Say(SAY_NETMSG, "Вам не удалось исправить фатальные повреждения внутренних органов пациента");
+		}
+		endAction(cr, target, PID_MEDICAL_NEEDLE, true);
+		return 0;
+	}
+	
+	if(target.ParamBase[CR_BLEEDING] > cr.Param[SK_DOCTOR] * 2 + Random(0, 50)){
+		cr.Say(SAY_NETMSG, "Кровотечение слишком сильное, вы ничего не смогли с этим сделать.");
+	}else{
+		cr.Say(SAY_NETMSG, "Вы сшили ранение.");
+		target.ParamBase[CR_BLEEDING] = 0;
+	}
+	endAction(cr, target, PID_MEDICAL_NEEDLE, true);
+	return 0;
+}
+
+
+void _bandage(Item& bandage, bool firstTime){
+	bandage.SetEvent(ITEM_EVENT_USE, "e_BandageUse");
+}
+
+void _medicalNeedle(Item& needle, bool firstTime)
+{
+	needle.SetEvent(ITEM_EVENT_USE, "e_NeedleUse");
+}
+
+void _adrenalineShot(Item& needle, bool firstTime)
+{
+	needle.SetEvent(ITEM_EVENT_USE, "e_AdrenalineUse");
+}
+
+uint cte_bandageHealSelf( Critter& cr, int identifier, uint& rate){
+	if(cr.ParamBase[CR_BLEEDING] > 400){
+		cr.Say(SAY_NETMSG, "Вы наложили повязки, но бинт быстро пропитывается кровью.");
+	}else{
+		cr.Say(SAY_NETMSG, "Вы наложили повязки");
+		cr.ParamBase[CR_BLEEDING] -= CLAMP(cr.Param[SK_FIRST_AID] / 2, 30, 100);
+	}
+	
+	endAction(cr, null, PID_BANDAGE, true);
+	return 0;
+}
+
+uint cte_bandageHealSomeone( Critter& cr, int identifier, uint& rate){
+	Critter@ target = GetCritter(rate);
+	
+	if(target.ParamBase[CR_BLEEDING] > 400){
+		cr.Say(SAY_NETMSG, "Вы наложили повязки, но бинт быстро пропитывается кровью.");
+	}else{
+		cr.Say(SAY_NETMSG, "Вы наложили повязки");
+		target.ParamBase[CR_BLEEDING] -= CLAMP(cr.Param[SK_FIRST_AID] / 2, 30, 60);
+	}
+	
+	endAction(cr, target, PID_BANDAGE, true);
+	return 0;
+}
+
+/*
+bool e_NeedleUseDeprecated(Item& needle, Critter& crit, Critter@ onCritter, Item@ onItem, Scenery@ onScenery)
+{
+	if(needle.CritSlot != SLOT_HAND1){
+		crit.Say(SAY_NETMSG, "Предмет должен быть в руках.");
+		return true;
+	}
+	
+	if(inCombat(crit)){
+		crit.Say(SAY_NETMSG, "Вы не можете сшивать раны в бою.");
+		return true;
+	}
+	
+	if(crit.Param[CR_IN_ACTION] != 0 || crit.GetTimeEvents(CTE_ACTION, null, null, null) > 0){
+		crit.Say(SAY_NETMSG, "Вы не можете делать несколько действий одновременно");
+		return true;
+	}
+	Map@ map = crit.GetMap();
+	
+	if(!valid(onCritter)){
+		crit.Say(SAY_EMOTE, "Зашивает рану на себе");
+		map.AddItem(crit.HexX, crit.HexY, PID_TECH_HEX, 1); 
+		crit.AddTimeEvent("cte_needleHealSelf", REAL_SECOND(CLAMP(300 - crit.Param[SK_DOCTOR], 100, 300)), CTE_ACTION, 0);
+		crit.ParamBase[CR_PAIN] += 30;
+	}else if (valid(onCritter)){
+		if(onCritter.Param[CR_IN_ACTION] > 0){
+			crit.Say(SAY_NETMSG, "Похоже цель уже чем-то занята.");
+			return true;
+		}
+		crit.Say(SAY_EMOTE, "Зашивает рану");
+		Item@ techHex2 = map.AddItem(crit.HexX, crit.HexY, PID_TECH_HEX, 1); 
+		Item@ techHex = map.AddItem(onCritter.HexX, onCritter.HexY, PID_TECH_HEX, 1); 
+		techHex.Val2 = crit.Id;
+		techHex2.Val2 = onCritter.Id;
+		onCritter.ParamBase[CR_IN_ACTION] = 1;
+		onCritter.ParamBase[CR_PAIN] += 30;
+		crit.AddTimeEvent("cte_needleHealSomeone", REAL_SECOND(CLAMP(400 - (crit.Param[SK_DOCTOR] * 2), 100, 300)), CTE_ACTION, onCritter.Id);
+	}
+	crit.ParamBase[CR_IN_ACTION] = 1;
+	needle.SetEvent(ITEM_EVENT_MOVE, "rp_utils@e_DropAction");
+	return true;
+}
+
+bool e_BandageUseDeprecated(Item& bandage, Critter& crit, Critter@ onCritter, Item@ onItem, Scenery@ onScenery){
+	if(bandage.CritSlot != SLOT_HAND1){
+		crit.Say(SAY_NETMSG, "Бинты должны быть в руках.");
+		return true;
+	}
+	
+	if(inCombat(crit)){
+		crit.Say(SAY_NETMSG, "Вы не можете использовать повязки в бою.");
+		return true;
+	}
+	
+	if(crit.Param[CR_IN_ACTION] != 0 || crit.GetTimeEvents(CTE_ACTION, null, null, null) > 0){
+		crit.Say(SAY_NETMSG, "Вы не можете делать несколько действий одновременно");
+		return true;
+	}
+	if(!valid(onCritter)){
+		crit.Say(SAY_EMOTE, "Бинтует себя");
+		Map@ map = crit.GetMap();
+		map.AddItem(crit.HexX, crit.HexY, PID_TECH_HEX, 1); 
+		crit.ParamBase[CR_IN_ACTION] = 1;
+		crit.AddTimeEvent("cte_bandageHealSelf", REAL_SECOND(CLAMP(150 - crit.Param[SK_FIRST_AID], 10, 100)), CTE_ACTION, CLAMP(crit.Param[SK_FIRST_AID] / 2, 30, 100));
+		bandage.SetEvent(ITEM_EVENT_MOVE, "rp_utils@e_DropAction");
+	}else if (valid(onCritter)){
+		if(onCritter.Param[CR_IN_ACTION] > 0){
+			crit.Say(SAY_NETMSG, "Похоже человек уже чем-то занят.");
+			return true;
+		}
+		crit.Say(SAY_EMOTE, "Накладывает повязки");
+		Map@ map = crit.GetMap();
+		Item@ techHex2 = map.AddItem(crit.HexX, crit.HexY, PID_TECH_HEX, 1); 
+		Item@ techHex = map.AddItem(onCritter.HexX, onCritter.HexY, PID_TECH_HEX, 1); 
+		techHex.Val2 = crit.Id;
+		techHex2.Val2 = onCritter.Id;
+		crit.ParamBase[CR_IN_ACTION] = 1;
+		onCritter.ParamBase[CR_IN_ACTION] = 1;
+		crit.AddTimeEvent("cte_bandageHealSomeone", REAL_SECOND(CLAMP(120 - crit.Param[SK_FIRST_AID], 10, 100)), CTE_ACTION, onCritter.Id);
+		bandage.SetEvent(ITEM_EVENT_MOVE, "rp_utils@e_DropAction");
+	}
+	return true;
+}
+*/
